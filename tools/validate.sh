@@ -35,6 +35,18 @@ run_static_checks() {
     "${CC:-cc}" -std=c11 -Wall -Wextra -Werror -Imain \
         tests/test_key_guard.c -o "${test_dir}/test_key_guard"
     "${test_dir}/test_key_guard"
+    "${CC:-cc}" -std=c11 -Wall -Wextra -Werror -Imain \
+        tests/test_pupu_model.c main/pupu_model.c \
+        -o "${test_dir}/test_pupu_model"
+    "${test_dir}/test_pupu_model"
+    "${CC:-cc}" -std=c11 -Wall -Wextra -Werror -Imain \
+        tests/test_pupu_save_codec.c main/pupu_save_codec.c main/pupu_model.c \
+        -o "${test_dir}/test_pupu_save_codec"
+    "${test_dir}/test_pupu_save_codec"
+    "${CC:-cc}" -std=c11 -Wall -Wextra -Werror -Imain \
+        tests/test_pupu_clock.c main/pupu_clock.c main/pupu_model.c main/pupu_save_codec.c \
+        -o "${test_dir}/test_pupu_clock"
+    "${test_dir}/test_pupu_clock"
     "${CC:-cc}" -std=c11 -Wall -Wextra -Werror -Icomponents/bsp/src \
         tests/test_bsp_display_rounding.c components/bsp/src/bsp_display_rounding.c \
         -o "${test_dir}/test_bsp_display_rounding"
