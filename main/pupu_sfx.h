@@ -26,6 +26,7 @@ typedef enum {
     PUPU_SFX_CLOUD,    // 小游戏:碰到乌云,"咚"
     PUPU_SFX_WIN,      // 小游戏:赢了
     PUPU_SFX_LOSE,     // 小游戏:没到 8 颗
+    PUPU_SFX_SYNC,     // 同步好了:挥手时清脆的"叮——"
     PUPU_SFX_COUNT,
 } pupu_sfx_t;
 

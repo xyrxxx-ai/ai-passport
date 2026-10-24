@@ -23,6 +23,7 @@
 | `child_happy.png`、`adult_happy.png` | 各 96 × 48 PNG RGBA，2 帧 | 开心地跳一下，喷出一小团"噗" |
 | `child_dodge.png`、`adult_dodge.png` | 各 96 × 48 PNG RGBA，2 帧 | 摸太多次时躲开 |
 | `child_shake.png`、`adult_shake.png` | 各 96 × 48 PNG RGBA，2 帧 | 太饱时摇头不吃 |
+| `child_wave.png`、`adult_wave.png` | 各 96 × 48 PNG RGBA，2 帧 | 同步好了，抬起前腿挥手 |
 | `icon_star.png` | 24 × 24 PNG RGBA，1 帧 | 小游戏的星星 |
 | `icon_cloud.png` | 24 × 24 PNG RGBA，1 帧 | 小游戏的乌云 |
 

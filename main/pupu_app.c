@@ -7,6 +7,7 @@
 // 开机时从 NVS 读存档。如果 RTC 一直在走(深睡醒来、USB 或软件重启,见 pupu_clock.h),
 // 就按离开的时长补算,超过 1 小时显示"你回来啦";断过电时宠物保持存档时的样子。
 // 深睡交给 pupu_ctl 工作任务去做,醒来等于重新开机。
+// 同步页(pupu_ui_sync.c)开着蓝牙窗口,收到手机的对时也按离开时长补算(pupu_sync_proto.h)。
 #include "pupu_app.h"
 
 #include "pupu_clock.h"
@@ -64,8 +65,8 @@ static const char *TAG = "pupu_app";
 #define STATUS_LOG_MS 60000
 #define BATTERY_EVERY_MS 30000  // 多久读一次电量(一次 I2C 读,约 1 ms)
 
-typedef enum { PAGE_EGG, PAGE_HOME, PAGE_FEED, PAGE_PLAY, PAGE_STATUS, PAGE_CATCH } page_t;
-static const char *const k_page_names[] = {"egg", "home", "feed", "play", "status", "catch"};
+typedef enum { PAGE_EGG, PAGE_HOME, PAGE_FEED, PAGE_PLAY, PAGE_STATUS, PAGE_CATCH, PAGE_SYNC } page_t;
+static const char *const k_page_names[] = {"egg", "home", "feed", "play", "status", "catch", "sync"};
 
 typedef struct {
     uint8_t btn;
@@ -82,6 +83,9 @@ static pupu_clock_t s_clock;
 static pupu_input_t s_input;
 static pupu_power_t s_power;
 static pupu_autosave_t s_autosave;
+static pupu_sync_t s_sync;  // 同步协议的状态;离开分钟数要跨窗口保留,所以开机时只初始化一次
+static void sync_snapshot(pupu_save_t *out);
+static const pupu_sync_env_t s_sync_env = {&s_model, &s_clock, sync_snapshot};
 static bool s_sleeping;  // 深睡交给了 pupu_ctl:等它睡下去,或者放弃
 // 会话令牌(见 pupu_clock.h)。RTC_NOINIT 变量深睡、软件重启后都还在,刚通电时是乱码。
 static uint64_t s_token;
@@ -122,6 +126,7 @@ static void show_page(page_t page, uint32_t now_ms) {
     case PAGE_FEED: s_screen = pupu_ui_care_create(PUPU_CARE_FEED, &s_model, now_ms); break;
     case PAGE_PLAY: s_screen = pupu_ui_care_create(PUPU_CARE_PLAY, &s_model, now_ms); break;
     case PAGE_CATCH: s_screen = pupu_ui_catch_create(&s_model, now_ms); break;
+    case PAGE_SYNC: s_screen = pupu_ui_sync_create(&s_sync_env, &s_sync, now_ms); break;
     default: s_screen = pupu_ui_status_create(&s_model); break;
     }
     s_notice = NULL;
@@ -135,14 +140,26 @@ static void update_page(uint32_t now_ms);
 static void apply_power(pupu_power_do_t todo, uint32_t now_ms);
 static void log_status(void);
 
+// 补算的离开时长(宠物时间)超过 1 小时:下一个页面显示"你回来啦！离开了 X 小时"。
+static void note_welcome(uint64_t away_pet_s) {
+    if (away_pet_s < PUPU_WELCOME_AWAY_S || s_notice != NULL) return;
+    const uint64_t hours = away_pet_s / 3600u;
+    snprintf(s_welcome, sizeof(s_welcome), PUPU_TXT_WELCOME, (unsigned)(hours > 9999u ? 9999u : hours));
+    s_notice = s_welcome;
+}
+
 static void handle_req(pupu_ui_req_t req, uint32_t now_ms) {
     switch (req) {
     case PUPU_UI_CHANGED: pupu_autosave_mark(&s_autosave, now_ms); break;
-    case PUPU_UI_GO_HOME: show_page(PAGE_HOME, now_ms); break;
+    case PUPU_UI_GO_HOME:
+        if (s_page == PAGE_SYNC) note_welcome(pupu_ui_sync_away_pet_s());  // 同步时补算过
+        show_page(PAGE_HOME, now_ms);
+        break;
     case PUPU_UI_GO_FEED: show_page(PAGE_FEED, now_ms); break;
     case PUPU_UI_GO_PLAY: show_page(PAGE_PLAY, now_ms); break;
     case PUPU_UI_GO_STATUS: show_page(PAGE_STATUS, now_ms); break;
     case PUPU_UI_GO_CATCH: show_page(PAGE_CATCH, now_ms); break;
+    case PUPU_UI_GO_SYNC: show_page(PAGE_SYNC, now_ms); break;
     case PUPU_UI_SCREEN_OFF: apply_power(pupu_power_screen_off(&s_power, now_ms), now_ms); break;
     default: break;
     }
@@ -157,6 +174,7 @@ static void handle_action(pupu_action_t act, uint32_t now_ms) {
     case PAGE_FEED:
     case PAGE_PLAY: req = pupu_ui_care_action(act, &s_model, s_clock.acct_now, now_ms); break;
     case PAGE_CATCH: req = pupu_ui_catch_action(act, &s_model, s_key_ms, now_ms); break;
+    case PAGE_SYNC: req = pupu_ui_sync_action(act, now_ms); break;
     default: req = pupu_ui_status_action(act); break;
     }
     handle_req(req, now_ms);
@@ -169,6 +187,7 @@ static void update_page(uint32_t now_ms) {
     case PAGE_FEED:
     case PAGE_PLAY: pupu_ui_care_update(&s_model, now_ms); break;
     case PAGE_CATCH: handle_req(pupu_ui_catch_update(&s_model, now_ms), now_ms); break;
+    case PAGE_SYNC: handle_req(pupu_ui_sync_update(now_ms), now_ms); break;
     default: pupu_ui_status_update(&s_model); break;
     }
 }
@@ -180,6 +199,10 @@ static pupu_save_t snapshot(void) {
     s.rtc_us = esp_rtc_get_time_us();
     s.token = s_token;
     return s;
+}
+
+static void sync_snapshot(pupu_save_t *out) {
+    *out = snapshot();
 }
 
 static void save_now(uint32_t now_ms) {
@@ -196,6 +219,7 @@ static bool app_busy(void) {
     case PAGE_FEED:
     case PAGE_PLAY: return pupu_ui_care_busy();
     case PAGE_CATCH: return pupu_ui_catch_busy();  // 暂停不算忙
+    case PAGE_SYNC: return pupu_ui_sync_busy();    // 蓝牙开着、正在开或正在关
     default: return false;
     }
 }
@@ -235,6 +259,9 @@ static void apply_power(pupu_power_do_t todo, uint32_t now_ms) {
     case PUPU_PWR_DO_WAKE:
         ESP_LOGI(TAG, "亮屏");
         pupu_input_init(&s_input);
+        // 同步页熄过屏,说明窗口早就关了、蓝牙也关了:亮屏直接回首页,把同步时的
+        // "你回来啦"带过去(熄屏期间不显示,否则气泡的 4 秒在黑屏里就过完了)
+        if (s_page == PAGE_SYNC) handle_req(PUPU_UI_GO_HOME, now_ms);
         update_page(now_ms);  // 熄屏期间没画:先把这一帧画好,再打开屏幕
         lv_refr_now(NULL);
         set_panel_on(true);
@@ -361,12 +388,8 @@ static bool catch_up_at_boot(const pupu_save_t *save) {
     ESP_LOGI(TAG, "开机原因 %d:RTC 连续,离开 %" PRIu64 " 秒(宠物 %" PRIu64 " 秒),补算 %" PRIu32
                   " 宠物秒,跨过 %" PRIu32 " 天",
              (int)reason, away_s, away_pet_s, cu.applied_s, cu.days);
-    if (away_pet_s >= PUPU_WELCOME_AWAY_S && s_notice == NULL) {
-        const uint64_t hours = away_pet_s / 3600u;
-        snprintf(s_welcome, sizeof(s_welcome), PUPU_TXT_WELCOME,
-                 (unsigned)(hours > 9999u ? 9999u : hours));
-        s_notice = s_welcome;
-    }
+    pupu_sync_note_away(&s_sync, away_pet_s);  // 手机同步时 STATUS 里的 away_min
+    note_welcome(away_pet_s);
     return true;
 }
 
@@ -376,6 +399,7 @@ esp_err_t pupu_app_start(void) {
 
     pupu_fonts_init();
     pupu_fonts_selfcheck();
+    pupu_sync_init(&s_sync);
 
     pupu_save_t save;
     const pupu_store_boot_t boot = pupu_store_start(&save);

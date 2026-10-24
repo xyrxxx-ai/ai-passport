@@ -8,4 +8,5 @@ Pupu is a virtual pet that lives in the FoloToy AI Passport: a black-faced littl
 
 - [Product design](docs/assets/pupu/design.md)
 - [Development progress](docs/assets/pupu/progress.md)
+- [Sync page for Chrome on a Mac](tools/pupu-sync-web/README.md)
 - [AI Passport hardware and development documentation](docs/README.md)

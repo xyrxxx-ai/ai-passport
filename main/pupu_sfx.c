@@ -111,6 +111,9 @@ static void play(pupu_sfx_t sfx) {
     case PUPU_SFX_LOSE:
         (void)(tone(392, 120, TRIANGLE) && tone(330, 120, TRIANGLE) && tone(262, 220, TRIANGLE));
         break;
+    case PUPU_SFX_SYNC:  // "叮——":比接星星的"叮"长,高音拖一下
+        (void)(tone(1568, 60, TRIANGLE) && rest(20) && tone(2093, 260, TRIANGLE));
+        break;
     default:
         break;
     }

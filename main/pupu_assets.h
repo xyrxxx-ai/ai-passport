@@ -3,7 +3,7 @@
 // Rerun /usr/bin/python3 tools/gen_pupu_assets.py after changing anything below;
 // tests/test_pupu_assets_fresh.py checks these hashes.
 // sha256 fc022c492eceded54727e10fc763341b54982878e9f8afade81d1ea036d39d66  assets/images/pupu/pupu.gpl
-// sha256 5dd80a687d7b1f27de11454067a3ff914c8ae6ac50cc03e4d113c3f6c1bf75c1  tools/gen_pupu_assets.py
+// sha256 a65cbcc76bbca379c2fe641da9b80431baa6580140b0295f1b4d5248fd6790f9  tools/gen_pupu_assets.py
 // sha256 6539f4ecbc68e0f15bbc4ef448f23362f46403bb64797532631111168e6a87f7  assets/images/pupu/egg_idle.png
 // sha256 ba14992884b1aa4f0b8833db279b0a7f26c890497bf7a64dafe9dbd8b60ef2d3  assets/images/pupu/egg_wobble.png
 // sha256 0bfbab90f20e10beee77d5aec167b6131cc8fac8a63ebcc3ce493a043401c44b  assets/images/pupu/egg_hatch.png
@@ -19,6 +19,8 @@
 // sha256 7041df0d983c0e69f6398fb805dd2d9d06df4db24b10966c0ef79654c7d25b4f  assets/images/pupu/adult_happy.png
 // sha256 26a18d59c47346cdca94d5910fd98b516624ddfb1b0ae0353e2c5dc0960c2cf0  assets/images/pupu/adult_dodge.png
 // sha256 2e546134b9702754739fda93f627f269a75430a84597ff416771e92254f6d612  assets/images/pupu/adult_shake.png
+// sha256 2ccd68a9274de65fcd3b0db93adbcacc18040ae1d1f9b51173bde4e061551494  assets/images/pupu/child_wave.png
+// sha256 54019fe45938413bd3e987482e8dffd6e5c3c14273a1c180299a11b91b3fbb9a  assets/images/pupu/adult_wave.png
 // sha256 f05142c108908b25fe815eb0c1e4dfb29ae90c4a8ff5a092b41276f16ed8bc2c  assets/images/pupu/icon_star.png
 // sha256 eb1bfcb59977eb9e8e72cd56a64dd3eeb722a0ce2fdadbc07fc2103516810d47  assets/images/pupu/icon_cloud.png
 #pragma once
@@ -43,6 +45,8 @@ typedef enum {
     PUPU_ANIM_ADULT_HAPPY,
     PUPU_ANIM_ADULT_DODGE,
     PUPU_ANIM_ADULT_SHAKE,
+    PUPU_ANIM_CHILD_WAVE,
+    PUPU_ANIM_ADULT_WAVE,
     PUPU_ANIM_COUNT,
 } pupu_anim_t;
 
@@ -78,6 +82,10 @@ typedef enum {
     PUPU_FRAME_ADULT_DODGE_1,
     PUPU_FRAME_ADULT_SHAKE_0,
     PUPU_FRAME_ADULT_SHAKE_1,
+    PUPU_FRAME_CHILD_WAVE_0,
+    PUPU_FRAME_CHILD_WAVE_1,
+    PUPU_FRAME_ADULT_WAVE_0,
+    PUPU_FRAME_ADULT_WAVE_1,
     PUPU_FRAME_COUNT,
 } pupu_frame_t;
 

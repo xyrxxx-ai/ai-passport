@@ -91,16 +91,27 @@ def draw_eyes(f, cx, head_y, eyes):
 
 
 def draw_sheep(f, cx, body_y, rx, ry, head_y, head_r, blink=False, lying=False, big_horns=False,
-               head_dx=0, eyes=None, mouth=None, puff=False):
-    """head_dx moves only the head; eyes is open/blink/happy/squint; mouth is open/chew."""
+               head_dx=0, eyes=None, mouth=None, puff=False, wave=None):
+    """head_dx moves only the head; eyes is open/blink/happy/squint; mouth is open/chew.
+    wave=0/1 lifts the front leg beside the body (two positions of a wave)."""
     if eyes is None:
         eyes = "blink" if blink else "open"
     if not lying:
-        for hx in (cx - rx + 3, cx - rx // 3, cx + rx // 3 - 1, cx + rx - 4):
+        legs = [cx - rx + 3, cx - rx // 3, cx + rx // 3 - 1, cx + rx - 4]
+        if wave is not None:
+            legs.pop()  # the front leg is up in the air
+        for hx in legs:
             for y in range(body_y + ry - 3, body_y + ry + 2):
                 f.put(hx, y, FACE)
                 f.put(hx + 1, y, FACE)
     f.ellipse(cx, body_y, rx, ry, WOOL_MID, OUTLINE, wool_shade(rx, ry))
+    if wave is not None:
+        # a 2 px wide leg from the side of the body: out at 45 degrees (0), or steeper (1)
+        x0, y0 = cx + rx - 1, body_y - 1
+        for i in range(6):
+            x = x0 + (i if wave == 0 else 2 + i // 3)
+            f.put(x, y0 - i, FACE)
+            f.put(x + 1, y0 - i, FACE)
     cx += head_dx  # everything from here on is the head
     # curled horns
     curl = 5 if big_horns else 4
@@ -231,6 +242,11 @@ ANIMS = [
 ANIMS += [("child_" + name, frames) for name, frames in reaction_frames(child)]
 ANIMS += [("adult_hungry", [lambda f: adult_hungry(f, 0), lambda f: adult_hungry(f, 1)])]
 ANIMS += [("adult_" + name, frames) for name, frames in reaction_frames(adult)]
+# Sync (M6): wave a front leg with ^ ^ eyes. Appended last so earlier frames keep their bytes.
+ANIMS += [
+    ("child_wave", [lambda f: child(f, eyes="happy", wave=0), lambda f: child(f, eyes="happy", wave=1)]),
+    ("adult_wave", [lambda f: adult(f, eyes="happy", wave=0), lambda f: adult(f, eyes="happy", wave=1)]),
+]
 
 
 # Mini-game icons (M5), 24 x 24, one frame each.

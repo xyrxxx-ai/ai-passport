@@ -48,3 +48,7 @@ CONFIG_BT_NIMBLE_ROLE_OBSERVER=n
 CONFIG_BT_NIMBLE_MAX_CONNECTIONS=1
 CONFIG_BT_NIMBLE_HOST_BASED_PRIVACY=n
 CONFIG_BT_NIMBLE_NVS_PERSIST=n
+# 噗噗同步窗口:连接建立失败(0x3E 等)时,开着这一项的 NimBLE 会自己"重试广播"并且不报断开,
+# 但 IDF 5.5.3 的传统广播重试一定失败(传入的广播参数是 NULL),设备就再也搜不到了。
+# 关掉以后失败会照常报给应用,由 main/pupu_ble.c 自己重新广播。
+CONFIG_BT_NIMBLE_ENABLE_CONN_REATTEMPT=n

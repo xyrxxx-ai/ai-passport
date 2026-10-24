@@ -24,6 +24,7 @@ directly; `tools/gen_pupu_assets.py` converts them into `main/pupu_assets.c` and
 | `child_happy.png`, `adult_happy.png` | 96 × 48 PNG RGBA, 2 frames each | Happy hop and a little snort cloud |
 | `child_dodge.png`, `adult_dodge.png` | 96 × 48 PNG RGBA, 2 frames each | Leaning away when patted too often |
 | `child_shake.png`, `adult_shake.png` | 96 × 48 PNG RGBA, 2 frames each | Shaking the head when too full to eat |
+| `child_wave.png`, `adult_wave.png` | 96 × 48 PNG RGBA, 2 frames each | Waving a front leg when a sync finishes |
 | `icon_star.png` | 24 × 24 PNG RGBA, 1 frame | Mini-game star |
 | `icon_cloud.png` | 24 × 24 PNG RGBA, 1 frame | Mini-game storm cloud |
 

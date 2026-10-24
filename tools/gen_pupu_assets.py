@@ -51,6 +51,9 @@ ANIMS = [
     ("adult_happy", [220, 380]),
     ("adult_dodge", [200, 400]),
     ("adult_shake", [180, 180]),
+    # Sync (M6): waves while the window closes after DONE.
+    ("child_wave", [250, 250]),
+    ("adult_wave", [250, 250]),
 ]
 
 # Mini-game icons (M5). Drawn at their final size and shown 1:1 as RGB565A8 lv_images:

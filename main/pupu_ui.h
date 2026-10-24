@@ -12,6 +12,7 @@
 #include "pupu_assets.h"
 #include "pupu_input.h"
 #include "pupu_model.h"
+#include "pupu_sync_proto.h"
 
 #define PUPU_COLOR_BG     0xF4ECDD  // 暖色纸面
 #define PUPU_COLOR_PAPER  0xFFFDF7  // 气泡
@@ -35,6 +36,7 @@ typedef enum {
     PUPU_UI_GO_PLAY,  // 也用于从小游戏回到玩耍页
     PUPU_UI_GO_STATUS,
     PUPU_UI_GO_CATCH,    // 玩耍页选"接星星"
+    PUPU_UI_GO_SYNC,     // 首页选"同步"
     PUPU_UI_SCREEN_OFF,  // 首页长按 OK:熄屏
 } pupu_ui_req_t;
 
@@ -45,6 +47,7 @@ typedef enum {
     PUPU_POSE_HAPPY,
     PUPU_POSE_DODGE,
     PUPU_POSE_SHAKE,
+    PUPU_POSE_WAVE,  // 同步好了:挥手
 } pupu_pose_t;
 
 pupu_anim_t pupu_ui_pet_anim(const pupu_model_t *m, pupu_pose_t pose);
@@ -127,6 +130,18 @@ bool pupu_ui_catch_busy(void);
 bool pupu_ui_catch_in_round(void);
 // 离开这一页时调用(比如暂停时熄屏):没结束的一局作废。
 void pupu_ui_catch_leave(void);
+
+// ---- 同步页(协议见 pupu_sync_proto.h,蓝牙见 pupu_ble.h)----
+// 进页面就让 pupu_ctl 打开蓝牙,开一个同步窗口;窗口开着时不能去别的页面。
+// 长按 OK:先关蓝牙,关好了 update 才返回 PUPU_UI_GO_HOME。env 和 sync 在页面存在期间一直有效。
+lv_obj_t *pupu_ui_sync_create(const pupu_sync_env_t *env, pupu_sync_t *sync, uint32_t now_ms);
+pupu_ui_req_t pupu_ui_sync_action(pupu_action_t act, uint32_t now_ms);
+// 处理蓝牙事件和手机的请求、推进窗口、画画面。收到对时(宠物状态变了)返回 PUPU_UI_CHANGED。
+pupu_ui_req_t pupu_ui_sync_update(uint32_t now_ms);
+// 蓝牙开着、正在开或正在关,或者噗噗在挥手:不变暗、不熄屏、不深睡。
+bool pupu_ui_sync_busy(void);
+// 这个窗口里对时补算的离开时长(宠物秒),回首页时显示"你回来啦"用;没有补算过返回 0。
+uint64_t pupu_ui_sync_away_pet_s(void);
 
 // ---- 状态页:饱腹、开心、星星糖,幼年多一行成长进度 ----
 lv_obj_t *pupu_ui_status_create(const pupu_model_t *m);

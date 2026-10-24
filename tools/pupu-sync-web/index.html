@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>噗噗同步</title>
+<style>
+  :root {
+    --bg: #f4ecdd; --paper: #fffdf7; --ink: #2b2118; --muted: #8c7f6a;
+    --soft: #d8cdb6; --accent: #2f4a8a; --bad: #a33a2a; --good: #3d7a3a;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 24px 16px 48px; background: var(--bg); color: var(--ink);
+    font: 16px/1.5 -apple-system, "PingFang SC", "Noto Sans SC", sans-serif;
+  }
+  main { max-width: 520px; margin: 0 auto; }
+  h1 { font-size: 24px; margin: 0 0 4px; }
+  .sub { color: var(--muted); margin: 0 0 20px; }
+  ol { padding-left: 20px; margin: 0 0 16px; color: var(--muted); }
+  .row { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+  button {
+    font: inherit; border: 2px solid var(--ink); border-radius: 999px; padding: 8px 22px;
+    background: var(--ink); color: var(--paper); cursor: pointer;
+  }
+  button.secondary { background: var(--paper); color: var(--ink); }
+  button:disabled { opacity: .4; cursor: default; }
+  #state { min-height: 24px; margin-bottom: 16px; }
+  #state.bad { color: var(--bad); }
+  .card {
+    background: var(--paper); border: 2px solid var(--ink); border-radius: 16px;
+    padding: 18px 16px; margin-bottom: 16px;
+  }
+  .card h2 { font-size: 20px; margin: 0 0 4px; }
+  .stat { display: grid; grid-template-columns: 5em minmax(0, 1fr) auto; align-items: center; gap: 10px; margin: 8px 0; }
+  .bar { height: 10px; background: var(--soft); border-radius: 5px; overflow: hidden; }
+  .bar > i { display: block; height: 100%; background: var(--accent); width: 0; }
+  .num { text-align: right; font-variant-numeric: tabular-nums; }
+  dl { display: grid; grid-template-columns: 5em minmax(0, 1fr); gap: 4px 10px; margin: 12px 0 0; }
+  dt { color: var(--muted); }
+  dd { margin: 0; overflow-wrap: anywhere; }
+  .ok { color: var(--good); }
+  .fail { color: var(--bad); }
+  details { color: var(--muted); }
+  #log {
+    font: 12px/1.45 ui-monospace, Menlo, monospace; white-space: pre-wrap; word-break: break-all;
+    background: var(--paper); border-radius: 10px; padding: 10px; max-height: 300px; overflow: auto;
+  }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<main>
+  <h1>噗噗同步</h1>
+  <p class="sub">Mac Chrome 原型页：对时、查看状态、下载存档备份</p>
+  <ol>
+    <li>在设备的首页选「同步」，屏幕上会显示 Pupu-XXXX 和倒数。</li>
+    <li>点下面的「同步」，在弹出的列表里选同一个 Pupu-XXXX。</li>
+  </ol>
+  <div class="row">
+    <button id="sync">同步</button>
+    <button id="save" class="secondary" disabled>下载存档备份</button>
+  </div>
+  <div id="state"></div>
+
+  <section class="card" id="card" hidden>
+    <h2>噗噗 <small id="stage" style="color: var(--muted); font-weight: normal"></small></h2>
+    <div class="stat"><span>饱腹</span><div class="bar"><i id="full-bar"></i></div><span class="num" id="full"></span></div>
+    <div class="stat"><span>开心</span><div class="bar"><i id="happy-bar"></i></div><span class="num" id="happy"></span></div>
+    <div class="stat" id="growth-row"><span>成长进度</span><div class="bar"><i id="growth-bar"></i></div><span class="num" id="growth"></span></div>
+    <dl>
+      <dt>亲密</dt><dd id="bond"></dd>
+      <dt>星星糖</dt><dd id="candy"></dd>
+      <dt>上次喂食</dt><dd id="fed"></dd>
+      <dt>最近离开</dt><dd id="away"></dd>
+      <dt>存档备份</dt><dd id="check"></dd>
+      <dt>设备</dt><dd id="device"></dd>
+    </dl>
+  </section>
+
+  <details>
+    <summary>通信记录</summary>
+    <div id="log"></div>
+  </details>
+</main>
+
+<script type="module">
+import {
+  NAME_PREFIX, NUS_RX, NUS_SERVICE, NUS_TX, NEVER_FED, STAGE_TEXT,
+  PupuLink, formatMinutes, runSync,
+} from './pupu_protocol.js';
+
+const $ = (id) => document.getElementById(id);
+const hex = (bytes) => Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join(' ');
+let lastSave = null;
+
+function log(dir, what) {
+  const line = `${new Date().toLocaleTimeString()} ${dir} ${what instanceof Uint8Array ? hex(what) : what}\n`;
+  $('log').textContent += line;
+  $('log').scrollTop = $('log').scrollHeight;
+}
+
+function setState(text, bad = false) {
+  $('state').textContent = text;
+  $('state').className = bad ? 'bad' : '';
+}
+
+function setBar(id, value, max) {
+  $(id).textContent = `${value}`;
+  $(`${id}-bar`).style.width = `${Math.min(100, (100 * value) / max)}%`;
+}
+
+function show(result, deviceName, ident) {
+  const s = result.status;
+  $('card').hidden = false;
+  $('stage').textContent = STAGE_TEXT[s.stage] || `阶段 ${s.stage}`;
+  setBar('full', s.full, 100);
+  setBar('happy', s.happy, 100);
+  $('growth-row').hidden = s.stage !== 1; // 产品说明:成长进度只在幼年显示
+  if (s.stage === 1) {
+    $('growth').textContent = `${s.bond}/100`;
+    $('growth-bar').style.width = `${Math.min(100, s.bond)}%`;
+  }
+  $('bond').textContent = `${s.bond}`;
+  $('candy').textContent = `${s.candy} 颗`;
+  $('fed').textContent = s.fed_age_min === NEVER_FED ? '还没喂过' : `${formatMinutes(s.fed_age_min)}前`;
+  // away_min 是设备这次开机以来最近一次补算的离开时长(深睡醒来或者对时),不一定是这一次
+  $('away').textContent = s.away_min ? `离开了 ${formatMinutes(s.away_min)}` : '这次开机以来没有离开过';
+  const c = result.check;
+  $('check').innerHTML = '';
+  const span = document.createElement('span');
+  span.className = c.ok ? 'ok' : 'fail';
+  span.textContent = c.ok
+    ? `${result.blob.length} 字节，CRC 校验通过`
+    : `校验失败（长度 ${c.lengthOk ? '对' : '不对'}，CRC ${c.crcOk ? '对' : '不对'}，记录尾部 ${c.trailerOk ? '对' : '不对'}）`;
+  $('check').append(span);
+  $('device').textContent = ident ? `${deviceName}（${ident}）` : deviceName;
+  lastSave = c.ok ? { blob: result.blob, name: deviceName } : null;
+  $('save').disabled = !lastSave;
+}
+
+const STEP_TEXT = { time: '对时…', save: '下载存档…', done: '完成…' };
+
+if (!navigator.bluetooth) {
+  setState('这个浏览器不能用蓝牙：请用 Mac 上的 Chrome，从 http://localhost:8000/ 打开这个页面。', true);
+  $('sync').disabled = true;
+}
+
+$('sync').addEventListener('click', async () => {
+  // requestDevice 必须是点击以后的第一件事,否则浏览器不让弹出设备列表
+  let device;
+  try {
+    device = await navigator.bluetooth.requestDevice({
+      filters: [{ namePrefix: NAME_PREFIX }],
+      optionalServices: [NUS_SERVICE], // NUS 很常见,只按名字筛,服务要单独声明
+    });
+  } catch (e) {
+    setState(`没有选设备（${e.message}）`, true);
+    return;
+  }
+  $('sync').disabled = true;
+  try {
+    setState(`正在连接 ${device.name}…`);
+    log('·', `connect ${device.name}`);
+    const server = await device.gatt.connect();
+    const service = await server.getPrimaryService(NUS_SERVICE);
+    const rx = await service.getCharacteristic(NUS_RX);
+    const tx = await service.getCharacteristic(NUS_TX);
+    const link = new PupuLink(
+      (bytes) => {
+        log('→', bytes);
+        return rx.writeValueWithResponse(bytes); // 一条写完再写下一条
+      },
+      { log: (text) => log('·', text) },
+    );
+    tx.addEventListener('characteristicvaluechanged', (event) => {
+      const v = event.target.value;
+      const bytes = new Uint8Array(v.buffer.slice(v.byteOffset, v.byteOffset + v.byteLength));
+      log('←', bytes);
+      link.onNotify(bytes);
+    });
+    await tx.startNotifications(); // 先打开通知,再写第一条:设备在手机打开通知之前不回复
+    let ident = '';
+    try {
+      ident = new TextDecoder().decode(await tx.readValue());
+      log('·', `device says ${ident}`);
+    } catch (e) {
+      log('·', `could not read the device id: ${e.message}`);
+    }
+    const result = await runSync(link, {
+      epochS: Math.floor(Date.now() / 1000),
+      tzMin: -new Date().getTimezoneOffset(),
+      onStep: (step) => setState(STEP_TEXT[step]),
+    });
+    show(result, device.name, ident);
+    const tail = result.doneAcked ? '' : '设备没回"完成"的确认，结果照样有效。';
+    setState(`同步好啦！（${new Date().toLocaleTimeString()}）${tail}`);
+  } catch (e) {
+    log('·', `failed: ${e.message}`);
+    setState(`同步失败：${e.message}。设备上的窗口可能已经关了，在设备上重新选「同步」再试。`, true);
+  } finally {
+    if (device.gatt.connected) device.gatt.disconnect();
+    $('sync').disabled = false;
+  }
+});
+
+$('save').addEventListener('click', () => {
+  if (!lastSave) return;
+  const stamp = new Date().toISOString().slice(0, 19).replace(/[-:T]/g, '');
+  const url = URL.createObjectURL(new Blob([lastSave.blob], { type: 'application/octet-stream' }));
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `pupu-save-${lastSave.name}-${stamp}.bin`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+});
+</script>
+</body>
+</html>

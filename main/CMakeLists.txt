@@ -9,6 +9,7 @@ idf_component_register(
          "pupu_input.c"
          "pupu_power.c"
          "catch_model.c"
+         "pupu_sync_proto.c"
          "pupu_assets.c"
          "pupu_fonts.c"
          "pupu_pet_view.c"
@@ -18,11 +19,13 @@ idf_component_register(
          "pupu_ui_care.c"
          "pupu_ui_status.c"
          "pupu_ui_catch.c"
+         "pupu_ui_sync.c"
          "pupu_sfx.c"
          "pupu_store.c"
          "pupu_ctl.c"
+         "pupu_ble.c"
          "pupu_app.c"
          "fonts/pupu_font_16.c"
     INCLUDE_DIRS "."
-    REQUIRES bsp bt esp_event esp_hw_support esp_netif esp_timer esp_wifi nvs_flash
+    REQUIRES bsp bt esp_app_format esp_event esp_hw_support esp_netif esp_timer esp_wifi nvs_flash
 )

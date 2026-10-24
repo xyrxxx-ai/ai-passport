@@ -53,6 +53,13 @@
 #define PUPU_SYNC_BOND             2    // 每个宠物日第一次被接受的对时:亲密 +2
 #define PUPU_BOND_PER_DAY          20   // 所有来源的亲密加起来每天最多 +20
 #define PUPU_EPOCH_MIN             1767225600u  // 2026-01-01 00:00:00 UTC,更早的手机时间直接拒绝
+#define PUPU_EPOCH_MAX             4102444800u  // 2100-01-01 00:00:00 UTC,更晚的也拒绝:离 u32 上限还有 6 年,acct_now 不会回绕
+
+// ---- 同步窗口(真实毫秒,不受时间倍率影响;产品说明第 12 节第 7 条) ----
+#define PUPU_SYNC_WAIT_MS          60000u   // 60 秒内没有手机来连:关窗口
+#define PUPU_SYNC_IDLE_MS          20000u   // 连上过以后 20 秒没有新请求:关窗口
+#define PUPU_SYNC_MAX_MS           120000u  // 整次最长 2 分钟
+#define PUPU_SYNC_DONE_LINGER_MS   1500u    // 收到 DONE 以后挥手、"叮"一声,这么久以后再关
 
 // ---- 按键(真实毫秒,不受时间倍率影响) ----
 #define PUPU_HOLD_MS               3000  // 蛋:按住 OK 这么久孵化

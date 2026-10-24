@@ -1,7 +1,7 @@
 // main/pupu_ui_home.c —— 首页:顶栏电量、需求气泡、宠物画布、底部 4 个功能。
 //
 // 首页不显示数字,只用表情、毛色和最多一个气泡表达状态(产品说明第 2、8 节)。
-// ↑/↓ 切换底部功能,到头就停;OK 单击进入喂食、玩耍、状态(同步在 M6);长按 OK 熄屏。
+// ↑/↓ 切换底部功能,到头就停;OK 单击进入喂食、玩耍、状态、同步;长按 OK 熄屏。
 // 从别的页面回来时,底部还停在上次选的那一项。
 #include "pupu_ui.h"
 
@@ -9,12 +9,8 @@
 #include "pupu_pet_view.h"
 #include "pupu_sprite_math.h"
 #include "pupu_text.h"
-#include "esp_log.h"
-
-static const char *TAG = "pupu_home";
 
 #define MENU_COUNT 4
-#define NOTE_MS 2000  // "还没做好"气泡显示多久
 
 static const char *const k_menu[MENU_COUNT] = {
     PUPU_TXT_MENU_FEED, PUPU_TXT_MENU_PLAY, PUPU_TXT_MENU_STATUS, PUPU_TXT_MENU_SYNC,
@@ -25,7 +21,7 @@ static pupu_bubble_t s_bubble;
 static pupu_picker_t s_picker;
 static int s_selected;  // 换页后保留
 static int s_shown_battery;
-static const char *s_note;  // 临时气泡(开机提示、"还没做好")
+static const char *s_note;  // 临时气泡(开机提示、"你回来啦")
 static uint32_t s_note_until_ms;
 
 static const char *battery_symbol(int soc) {
@@ -72,6 +68,7 @@ lv_obj_t *pupu_ui_home_create(const pupu_model_t *m, int battery, const char *no
 }
 
 pupu_ui_req_t pupu_ui_home_action(pupu_action_t act, uint32_t now_ms) {
+    (void)now_ms;
     if (pupu_picker_action(&s_picker, act)) {
         s_selected = s_picker.selected;
         return PUPU_UI_NONE;
@@ -81,10 +78,7 @@ pupu_ui_req_t pupu_ui_home_action(pupu_action_t act, uint32_t now_ms) {
         case 0: return PUPU_UI_GO_FEED;
         case 1: return PUPU_UI_GO_PLAY;
         case 2: return PUPU_UI_GO_STATUS;
-        default:
-            ESP_LOGI(TAG, "同步在 M6 才做");
-            set_note(PUPU_TXT_NOT_YET, now_ms + NOTE_MS);
-            return PUPU_UI_NONE;
+        default: return PUPU_UI_GO_SYNC;
         }
     }
     if (act == PUPU_ACT_BACK) return PUPU_UI_SCREEN_OFF;

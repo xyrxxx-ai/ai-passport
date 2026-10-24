@@ -75,7 +75,8 @@ bool pupu_clock_reset_keeps_rtc(pupu_reset_reason_t reason);
 // 不通过时返回 false、*away_real_s = 0,当作断过电:宠物保持存档时的样子。
 bool pupu_clock_boot(pupu_clock_t *c, const pupu_boot_info_t *boot, uint64_t *away_real_s);
 
-// 收到手机的 TIME。早于 2026-01-01 的时间返回 false,什么都不改(回 ERR,错误码 3)。
+// 收到手机的 TIME。早于 2026-01-01 或晚于 2100-01-01 的时间返回 false,什么都不改
+// (回 ERR,错误码 3)。上限保证 acct_now(u32)再走几年也不会回绕成 0("从没同步过")。
 // 接受时返回 true:第一次同步不补算(*away_real_s = 0);否则
 // *away_real_s = max(0, phone_epoch - acct_now)。无论哪种,acct_now 都设成手机时间,
 // 哪怕它比 acct_now 还早,这样一次错误的手机时间下次同步就能纠正。

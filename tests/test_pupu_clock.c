@@ -107,6 +107,9 @@ static void test_sync_rules(void) {
 
     // 早于 2026-01-01 的时间拒绝,什么都不改。
     assert(!pupu_clock_sync(&c, PUPU_EPOCH_MIN - 1, &away));
+    // 晚于 2100-01-01 也拒绝:acct_now 是 u32,再走几年会回绕成 0("从没同步过")
+    assert(!pupu_clock_sync(&c, PUPU_EPOCH_MAX + 1, &away));
+    assert(!pupu_clock_sync(&c, 0xFFFFFFFFu, &away));
     assert(away == 0 && c.acct_now == 0);
     assert(!pupu_clock_sync(&c, 0, &away));
 

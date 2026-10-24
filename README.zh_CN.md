@@ -8,4 +8,5 @@
 
 - [产品说明](docs/assets/pupu/design.zh_CN.md)
 - [开发进度](docs/assets/pupu/progress.zh_CN.md)
+- [Mac Chrome 同步网页](tools/pupu-sync-web/README.zh_CN.md)
 - [AI Passport 硬件和开发文档](docs/README.zh_CN.md)

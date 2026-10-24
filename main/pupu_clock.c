@@ -42,7 +42,7 @@ bool pupu_clock_boot(pupu_clock_t *c, const pupu_boot_info_t *boot, uint64_t *aw
 
 bool pupu_clock_sync(pupu_clock_t *c, uint32_t phone_epoch, uint64_t *away_real_s) {
     *away_real_s = 0;
-    if (phone_epoch < PUPU_EPOCH_MIN) return false;
+    if (phone_epoch < PUPU_EPOCH_MIN || phone_epoch > PUPU_EPOCH_MAX) return false;
     if (c->acct_now != 0 && phone_epoch > c->acct_now) {
         *away_real_s = phone_epoch - c->acct_now;
     }

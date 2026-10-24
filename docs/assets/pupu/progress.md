@@ -9,9 +9,9 @@ Update this document at the end of every milestone. The product design is in [de
 ## Current state
 
 - **Branch**: `feature/pupu-v1`, created from `006c227` on `origin/main`. It has no upstream tracking branch and is never pushed.
-- **Done**: M0 preparation, M1 pet rule core, M2 first screen, M3 care actions, sound effects, save data. The code and host tests for M4 (screen off, deep sleep, and continuous clock) and M5 (mini-game "Catch the Stars") are done and the complete gate passes; as you asked, both milestones were built and tested on the device together. Most of the normal-build device acceptance passes, and so do the three remaining M3 checks (see "M4 + M5 device acceptance").
-- **Next step**: test the few remaining mini-game key checks, flash the time-scaled build for deep-sleep catch-up and "welcome back" (see "Next step" at the end), then M6.
-- **Commit state**: M0 (`2c77a38`), M1 (`dcf9342`), M2 (`2ad5410`), and M3 (`c6ba37a`) are committed to the local `feature/pupu-v1`. With your approval, M4 and M5 are committed together as one commit on the local `feature/pupu-v1`; its hash is recorded in the next milestone's section (a commit cannot contain its own hash). Nothing is pushed.
+- **Done**: M0 preparation, M1 pet rule core, M2 first screen, M3 care actions, sound effects, save data, M4 screen off, deep sleep, and continuous clock, M5 mini-game "Catch the Stars" (M4 and M5 device acceptance: see "M4 + M5 device acceptance"). **M6 Bluetooth sync and Mac web page**: code, host tests, code review, and the complete gate are done, and the fuel-gauge retry is fixed; **not yet tested on the device**.
+- **Next step**: flash and run the M6 device acceptance (see "Device acceptance checklist" in the M6 section), then M7, the WeChat mini program (you need to register a mini-program account first; see "Next step" at the end).
+- **Commit state**: M0 (`2c77a38`), M1 (`dcf9342`), M2 (`2ad5410`), M3 (`c6ba37a`), and M4 + M5 (`a6534e2`) are committed to the local `feature/pupu-v1`. With your approval, M6 (together with the progress notes added after M4 + M5) is committed to the local `feature/pupu-v1`; its hash is recorded in the next milestone's section (a commit cannot contain its own hash). Nothing is pushed.
 
 ## Milestones
 
@@ -22,8 +22,8 @@ Update this document at the end of every milestone. The product design is in [de
 | M2 | First screen: see Pupu | Done |
 | M3 | Care actions, sound effects, save data | Done (two device checks moved to M4) |
 | M4 | Screen off, deep sleep, and continuous clock | Done; normal-build device acceptance passes; time-scaled deep-sleep catch-up still to test |
-| M5 | Mini-game "Catch the Stars" | Done; most device acceptance passes; hold to quit and 4th win still to test |
-| M6 | Bluetooth sync and Mac web page | Not started |
+| M5 | Mini-game "Catch the Stars" | Done; device acceptance passes |
+| M6 | Bluetooth sync and Mac web page | Code and host tests done; waiting for device acceptance |
 | M7 | WeChat mini program | Not started |
 | M8 | Full-device acceptance and wrap-up | Not started |
 
@@ -500,10 +500,11 @@ The serial log was recorded on the computer for about 17 minutes across 6 boots.
 | Mini-game: lose | Pass: 0 stars (2 caught, 4 clouds hit): fullness −5, nothing else |
 | Mini-game: screen off while paused | Pass: paused, dimmed at 20 s, off at 45 s, round voided; the Play page was shown after waking |
 | Mini-game: re-entering | Pass: 3 rounds; the LVGL pool was 22% on each game entry and 19% back on the Play page |
-| Targets | Pass: minimum 36 frames per second (40 in round 2), target 30; longest frame 16 ms; longest lane change to drawn 42 ms, target 50; about 37 KB free in the LVGL pool, target 4 KB |
+| Targets | Mostly pass: over 8 full rounds, minimum 36–40 frames per second (target 30); longest frame 19 ms; longest lane change to drawn 33–47 ms, except one round at 51 ms, 1 ms over the 50 ms target (the worst case in a round, including up to 20 ms of key queueing and up to 20 ms waiting for the next refresh); about 37 KB free in the LVGL pool (target 4 KB) |
 | Memory | Pass: over 17 minutes the heap stayed at 182,752 bytes and the lowest-ever value stayed at 177,376 bytes |
-| Mini-game: hold OK to quit, tap then hold to quit | **Not tested**: no "quit" entry in the log |
-| Mini-game: 4th win of the day | **Not tested**: only 1 round was won |
+| Mini-game: hold OK to quit, tap then hold to quit | Pass (retest): the log shows two "held OK to quit, round does not count" entries, both pausing first and then holding, and neither resumed; you confirmed both ways of pressing quit |
+| Mini-game: 4th win of the day | Pass (retest): the first 3 wins of the day each gave 1 star candy; the 4th win gave happiness +15 and candy +0, and you confirmed the result says today's candy is used up. Bond was also +0 that round because the day's bond had already reached 20 (rice 3+3, pats 3, games 3+3+3, star candy 2) |
+| Fuel gauge (boot after about 22 minutes of deep sleep) | **Problem**: on this boot the gauge had not produced its first reading after 5 s (`bsp_batt` first-SOC timeout), so the top bar showed no battery for the whole boot and the low-battery save could not work. The gauge is put to sleep before deep sleep; after the 40-second deep sleep it was ready quickly. The likely cause is that after a long sleep the gauge needs longer to re-estimate, while the app tries only once. M6 now retries every 30 s (see the M6 section) |
 | "Welcome back" | **Not tested**: the normal build needs over 1 hour away; left for the time-scaled build |
 
 **Two things in the log**:
@@ -516,14 +517,141 @@ The serial log was recorded on the computer for about 17 minutes across 6 boots.
 ```text
 Build: PASS (normal and time-scaled builds both compile in the sandbox without warnings; validate.sh firmware build, merged image, partition layout, and archive verification all pass)
 Host tests: PASS (validate.sh repository checks, actionlint, and all host tests pass, including the new test_pupu_power, test_catch_model, and test_pupu_deep_sleep_contract and the changed test_key_guard; the two macOS workarounds from M0 are still needed)
-Device tests: PASS (normal build, limited to the rows marked Pass above; the three remaining M3 checks also pass)
-Unverified: mini-game hold OK to quit, tap then hold to quit, 4th win of the day; whether a key press while off moved the picker an extra step and whether sounds crackle (needs your confirmation); deep-sleep catch-up and "welcome back" on the time-scaled build; power use with the screen off and in deep sleep
+Device tests: PASS (normal build, limited to the rows marked Pass above; the three remaining M3 checks and the three retests also pass); one problem found: after a long deep sleep the fuel-gauge init times out and the top bar shows no battery
+Unverified: whether a key press while off moved the picker an extra step and whether sounds crackle (needs your confirmation); deep-sleep catch-up and "welcome back" on the time-scaled build; power use with the screen off and in deep sleep
 ```
+
+## M6 Bluetooth sync and Mac web page (2026-10-24, code done, waiting for device acceptance)
+
+The M4 + M5 commit is `a6534e2`. This milestone also fixes the fuel-gauge problem found during the M4 + M5 device acceptance.
+
+### What was done
+
+- **Protocol `pupu_sync_proto`** (pure logic, host test `tests/test_pupu_sync_proto.c`): implements section 8 of the plan. A message is at most 20 bytes, `[type][seq][payload]`, little-endian. The phone sends TIME (the current time), GET_STATUS, SAVE_BEGIN (snapshot the save), SAVE_GET (one chunk of the save) and DONE; the device answers STATUS, SAVE_INFO, SAVE_CHUNK and DONE_ACK, and ERR for anything malformed. The same file holds the sync-window rules: wait 60 s for a phone; once a phone has connected, close after DONE plus the 1.5 s wave, or after 20 s without a request; never longer than 2 minutes.
+- **Bluetooth `pupu_ble`**: a NimBLE peripheral with the Nordic UART layout (RX for writes, TX for notifications). Start and stop are copied from `demo_ble.c`: its own host task, a semaphore to confirm the host stopped, at most 2 s of waiting, and ownership kept on failure so stopping can be retried. The GATT table is registered again for every window. The advertising packet carries the NUS UUID; the name `Pupu-XXXX` (the last 4 hex digits of the Bluetooth address) goes in the scan response. v1 does not pair and no characteristic is encrypted. Bluetooth callbacks only copy bytes into a queue and never call stop. No notification is sent before the phone turns notifications on, and the device advertises again after a disconnect while the window is open.
+- **Worker task `pupu_ctl`**: two new commands, Bluetooth on and Bluetooth off. Turning Bluetooth off never holds the LVGL lock (with a phone connected it can take up to 2 s and the screen must not freeze). Deep sleep turns Bluetooth off first; if that fails the device restarts instead of sleeping with the radio on.
+- **Fuel-gauge fix**: after an init timeout, try again every 30 s, at most 10 times (about 5 minutes); boards without a gauge are not retried. While Bluetooth is on, a retry waits (each retry keeps the worker busy for up to 5 s and would hold up turning Bluetooth off) and does not count as an attempt.
+- **Sync page `pupu_ui_sync.c`**: choosing Sync on the home page opens it and turns Bluetooth on at once. On screen: the title at top left, a countdown at top right, a status bubble, Pupu in the middle, and below it the name `Pupu-XXXX` and a hint to press Sync on the phone. After a connection the bubble says the phone is connected; if the time sync catches up more than 1 hour, the bubble says "welcome back, you were away X hours", and the home page says it again afterwards. On DONE, Pupu waves for 1.5 s with a chime, then Bluetooth turns off. After the window closes, the page stays and shows the result (synced, no phone came, the phone left, Bluetooth would not start, Bluetooth error); long-press OK returns home. Long-pressing OK while the window is open turns Bluetooth off first and returns home only once it is off. While the window is open, while Bluetooth is turning on or off, and while it fails to turn off, the app counts as busy and never dims, turns the screen off or deep-sleeps.
+- **Home page**: Sync opens the sync page. The old "not ready yet" text is no longer used anywhere and was removed.
+- **Wave animation**: `child_wave` and `adult_wave`, 2 frames each, appended at the end so the existing 31 frames keep identical bytes (checked). There are now 17 animations and 35 frames.
+- **Sound**: a new chime (`PUPU_SFX_SYNC`), a little longer and higher than the mini-game star.
+- **Font**: 19 new characters (including the corner brackets), 215 glyphs after regenerating.
+- **Mac web page `tools/pupu-sync-web/`**: `index.html` plus `pupu_protocol.js`, with no dependencies. Press Sync, pick `Pupu-XXXX` in Chrome's list, then: notifications on, TIME, download and check the save, DONE. It shows a status card (stage, fullness, happiness, growth, bond, star candy, last fed, most recent time away, save check) and can download the save as a `.bin`. Each request waits 1 s and is resent with the same sequence number at most 3 times. See `tools/pupu-sync-web/README.md`.
+- **Tests**: `tests/pupu_sync_vectors.txt` holds byte-exact golden vectors (17 request/reply pairs); the C test replays them in order and the web test checks its encoder and decoder against the same file. `tests/test_pupu_sync_web.mjs` (Node) and `tests/test_pupu_ble_contract.py` (the Bluetooth rules, see below) are registered in `tools/validate.sh`. **The complete gate now needs Node** (included on the ubuntu CI runner; this Mac has Node 22).
+
+### Notes on the protocol
+
+- **SAVE_INFO CRC**: covers every byte of the save record except the last 4, so it equals the record's own trailing CRC. It cannot include the trailing CRC: the CRC of a record together with its own CRC is always the constant `0x2144DF1C`, whatever the save contains, so it would check nothing (the tests caught this on the first run). The page checks both.
+- **Resends**: a TIME with the same sequence number and the same time counts once; a SAVE_BEGIN with the same sequence number reuses the same snapshot; DONE is acknowledged every time, but Pupu waves only once.
+- **One catch-up per window**: v1 does not pair, so anyone nearby can connect while the window is open. So that nobody can farm rewards by sending "one day later" times over and over, only the first time sync in a window catches up and pays the first-sync bonus; later ones only correct the clock. Another catch-up needs a new sync window opened on the device.
+- **Time range**: times before 2026-01-01 or after 2100-01-01 are rejected (error code 3). The upper limit keeps the 32-bit accounting seconds from wrapping for years.
+- **The two times in STATUS**: `fed_age_min` is the minutes since the last feeding (real minutes if the device was synced at feeding time, pet minutes otherwise); `away_min` is the time away of the most recent catch-up since boot (deep-sleep wake or time sync), in pet minutes, updated only when at least 1 minute.
+
+### Test coverage
+
+- `test_pupu_sync_proto.c`: the 17 golden pairs match byte for byte; the CRC check value; chunk boundaries (0, 1, 17, 18, 34, 35 and 67 bytes); an empty message, 1 byte, every request one byte short or long, 21 bytes and unknown types (each gets the right ERR and changes nothing); every reply echoes the sequence number (0, 0x7F, 0x80, 0xFF); the snapshot stays the same after the pet changes, is reused on a same-number resend, is retaken for a new number, is dropped on a new connection, and decodes back in full; first sync ever, syncing an egg, the 8-hour cap and floor of 10, 60x time scale; resends, correcting a wrong time, the 2026 and 2100 limits; catching up across a day before paying the bonus; 50 "one day later" times in one window catch up only once; the fed-age cases; the threshold and cap of the away minutes; the window's 60 s, 20 s, 2 minutes, 1.5 s after DONE, disconnect and reconnect, and millisecond wraparound.
+- `test_pupu_sync_web.mjs`: the page's encoder matches the 14 golden requests and its decoder returns every field of the 17 golden replies; the assembled save passes both CRC checks and any single flipped byte is caught; a resend with the same number succeeds after two losses, it gives up after 4 tries, stale replies and garbage never answer a request, a write that throws is retried; one whole sync against a fake device (including a DONE acknowledgement that never arrives, which keeps the results); ERR becomes a readable message.
+- `test_pupu_ble_contract.py` (17 checks): Bluetooth callbacks never stop Bluetooth or touch the UI, the save or the pet state; every characteristic has an access_cb and no encryption; UUID byte order; notify only after subscribing; connectable advertising, the name in the scan response, advertising again after a disconnect; Bluetooth is turned on and off only by the worker task, without the LVGL lock; the stop order matches `demo_ble.c`; deep sleep turns Bluetooth off before the key check and restarts if that fails; a half-finished deinit is never retried; an open window or a Bluetooth that will not stop counts as busy; deciding to close stops accepting writes at once; the page reads no events before it sees Bluetooth on; fuel-gauge retries wait while Bluetooth is on; `CONN_REATTEMPT` is off; a subscription that arrives before the connect event is kept; with no worker task, turning Bluetooth off counts as done; waking on a sync page that went dark returns home.
+- **Mutation checks**: in a temporary copy, the protocol was broken on purpose in 18 ways (for example a CRC over the whole record, no resend check, bonus before catch-up, accepting long messages, rounding the chunk count down, no cap, short absences overwriting the away minutes, the 20 s counted from the window opening, always retaking the snapshot, an off-by-one chunk index, a new window not clearing, ignoring the 2-minute limit, real minutes without a sync, STATUS writing to the wrong offset, catching up on every time sync, judging clock drift in pet seconds, a new connection keeping the old snapshot, never closing after the wave); the C test caught all 18 (the 2 missed on the first run now have tests), and removing the 2100 limit from the clock module was caught too. The page code was broken in 13 ways and the Node test caught all 13. The repository files were not changed.
+- **The page in a browser**: with a fake Bluetooth device that answers with the golden bytes, the Sync button was pressed in a browser: the first write was dropped on purpose and the resend succeeded; the status card, save check and download button worked; the layout was checked at a narrow and a desktop width. Real Bluetooth needs the device.
+
+### Code review
+
+Three rounds, each by independent reviewers. In the first two rounds each reviewer re-checked its own findings; in the third, every finding went to 3 verifiers who tried to refute it from different angles, and it counted only if at least 2 agreed.
+
+- **Round 1, protocol and web page** (1 medium and several low findings, all fixed with tests):
+  1. One window could take many "one day later" time syncs, each crossing a day and paying a bonus, so anyone nearby could farm Pupu into an adult → only one catch-up per window.
+  2. No upper limit on the time, so the 32-bit seconds could wrap to 0 ("never synced") → times after 2100 are rejected too.
+  3. A lost DONE acknowledgement made the page throw away results it had already checked → they are shown anyway.
+  4. One second of clock drift reset "most recent time away" to 0, and the page's "welcome back" banner could mislead → less than 1 minute does not overwrite it; the banner was removed.
+  5. Some tests put calls with side effects inside `assert()` (forbidden by the plan) → fixed.
+  6. Reconnecting within a window could return the previous connection's snapshot → a new connection drops the old snapshot.
+- **Round 2, Bluetooth and concurrency** (1 medium and 3 low findings, all fixed with checks):
+  1. When Bluetooth failed to turn off, the page stopped counting as busy, so the device could turn the screen off and deep-sleep with the radio on → a stuck Bluetooth counts as busy and retries every 5 s; deep sleep turns Bluetooth off first and restarts if that fails.
+  2. A fuel-gauge retry (up to 5 s) could hold up turning Bluetooth off, while Bluetooth kept advertising and accepting writes → retries wait while Bluetooth is on, and deciding to close stops accepting at once.
+  3. Events that arrived before the page saw Bluetooth on (such as a quick connection) were dropped → the page reads no events until then.
+  4. Retrying after a half-finished stop would crash (an old problem copied from `demo_ble.c`, very rare) → it is recorded and the device restarts.
+- **Round 3, four dimensions plus adversarial verification** (11 findings, 10 confirmed; two pairs were duplicates, so 8 problems, all fixed):
+  1. **(Medium) After a failed connection setup the device can no longer be found**: IDF 5.5.3 turns on `CONN_REATTEMPT` by default on the C3. When a connection fails to establish (for example reason 0x3E), NimBLE reports no disconnect and "retries advertising" itself, but the legacy retry always fails (it passes NULL parameters), so the device stops advertising for the rest of the window → `sdkconfig.defaults` turns it off, failures reach the app as usual, and the app advertises again itself. Per rule 9, the local `sdkconfig` files were deleted and rebuilt, and grep confirmed the value in both builds.
+  2. **(Medium) Without the worker task, the sync page trapped the user** (screen always on, no way out) → with no worker, "Bluetooth off" counts as already done (it was never on).
+  3. The sync's "welcome back" never reached the home page if the device went dark and deep-slept on the sync page → waking from a dark sync page returns home with the message.
+  4. On the time-scaled build, a phone 1 s ahead (60 pet seconds) still overwrote "most recent time away" → judged in real seconds now.
+  5. The page still described error code 3 as "earlier than 2026" → now "must be between 2026 and 2100", checked by the test.
+  6. The complete gate now needs Node, but the environment guide's static-gate prerequisites did not say so → `docs/development/engineering/environment-setup.md` and its Chinese version list Node.js 18 or newer, and `validate.sh` prints a clear message when Node is missing.
+  7. The top of this document and the milestone table still said M6 had not started → updated (this document).
+  8. The checklist row "second sync in one window" cannot be done on the device (the page always ends with DONE and the window closes 1.5 s later) and would not reveal the problem anyway → removed; the host test `test_one_catch_up_per_window` covers the rule.
+  - The 1 refuted finding: "a phone that turns notifications on before the connect event arrives is ignored". 2 of 3 verifiers said the timing cannot happen on this device. The fix is small, so it was made defensively anyway: before the connect event arrives, a subscription or write adopts its connection handle (only one connection is allowed).
+
+### Decisions made while coding (you can overrule them)
+
+1. **After the window closes, the sync page stays** and shows the result; long-press OK returns home, there is no automatic return. The product design only says Pupu waves with a chime when the sync succeeds.
+2. A window that ends because of 20 s without a request and one that reaches 2 minutes both show "the phone left".
+3. **One catch-up per window** (see "Notes on the protocol"). The cost: if the first time sync carries a wrong time, correcting it in the same window does not catch up again; that waits for the next sync.
+4. When a sync catches up more than 1 hour, the sync page's bubble shows "welcome back", and the home page shows it again (as after a deep-sleep wake).
+5. `away_min` in STATUS uses pet time (consistent with "welcome back"; in the normal build it equals real minutes) and is not overwritten by a catch-up shorter than 1 minute. The page shows "most recent time away" and has no "welcome back" banner, because the value may come from an earlier deep sleep.
+6. The sequence number inside the save backup is 0; the time zone in TIME is unused in v1 (pet days do not follow the calendar).
+7. If Bluetooth will not turn off, the sync page stays, shows that Bluetooth will not turn off and to long-press to retry, retries by itself every 5 s, and retries at once on a long press; this counts as busy, so the screen stays on and the device never deep-sleeps. If the deinit only half finishes (very rare), the device restarts (after a software restart the clock is continuous and catch-up works as usual).
+8. The page's button is called Sync, matching the hint on the device; the page lists only names starting with `Pupu-` and checks the protocol version. A missing DONE acknowledgement still shows the results (the device is already turning Bluetooth off).
+9. When a sync page has gone dark (so the window and Bluetooth closed long ago), waking returns to the home page and carries the sync's "welcome back" there. If deep sleep follows the screen-off, that message is lost and the wake shows the time away during that deep sleep instead.
+10. `sdkconfig.defaults` gains `CONFIG_BT_NIMBLE_ENABLE_CONN_REATTEMPT=n` (the plan said the Bluetooth settings needed no change; the review found this one is necessary, see item 1 of the third round under "Code review").
+11. So that Node can test the page's code directly, `tools/pupu-sync-web/` has a `package.json` with only `"type": "module"`; nothing needs installing.
+
+### Device acceptance checklist (next step)
+
+Flashing the **time-scaled build** (scale 60) first is recommended: the window's 60 s, 20 s and 2 minutes are real time and unaffected, and "off for 3 hours" takes only 3 minutes.
+
+| Check | How | Expected |
+| --- | --- | --- |
+| Whole sync | Choose Sync on the device; open the page on the Mac, press Sync, pick `Pupu-XXXX` | The page's fullness, happiness, bond and star candy match the device's Status page; the save shows the CRC check passed; the device waves and chimes, then shows synced |
+| Sync after 3 hours off | Time-scaled build: hold the power key off for 3 minutes, turn on, sync | Bubble "welcome back, away 3 hours", shown again on the home page; stats dropped by the catch-up rules and not below 10; the page's most recent time away is about 3 hours |
+| Download the save | Press the download button | A 67-byte `.bin` |
+| The phone leaves mid-sync | Close the page (or turn off Mac Bluetooth) after the sync starts | About 20 s later the device closes the window, shows the phone left, and long-press OK returns home |
+| No phone comes | Open the window and do nothing | The 60 s countdown reaches 0 and the page shows no phone came |
+| Close early while connected | After the page connects, long-press OK on the device | Bluetooth is off and the home page is back within 2 s |
+| Open and close 20 times | Enter the sync page and long-press OK out, 20 times | In the log, the heap and lowest-ever values on each `pupu_ble` memory line marked `[stopped]` stop falling |
+| RF calibration | Read the log | No `phy_init … 0x1101` after the first window |
+| Fuel gauge | Let the device deep-sleep over 20 minutes, then wake it with a key | The top bar shows the battery; if the first try times out, the log shows a retry succeeding 30 s later |
+| Deep-sleep catch-up (left from M4) | Time-scaled build: screen off for 5 minutes until deep sleep, wake with a key | Welcome back, away about 5 hours |
+| Wave and chime | Watch and listen | You are happy with them |
+
+### Interface notes for later milestones
+
+- **The M7 mini program** uses the same protocol. `tools/pupu-sync-web/pupu_protocol.js` uses no browser APIs and is a direct reference (encoding, CRC, retries, the order of one whole sync); `tests/pupu_sync_vectors.txt` holds the golden bytes, and the mini program should match them byte for byte.
+- When scanning in the mini program, write the service UUID in upper case: `6E400001-B5A3-F393-E0A9-E50E24DCCA9E`. Every write is at most 20 bytes, so the MTU never needs changing.
+- The device does not reply before the phone turns notifications on; the phone must finish `notifyBLECharacteristicValueChange({type:'notification'})` before its first write.
+- Only one catch-up per window; reconnecting within the same window does not catch up again.
+
+### Build identity
+
+| Item | Value |
+| --- | --- |
+| Source | `a6534e2` (M4 + M5) plus the M6 changes, that is, the M6 commit. The images were built before committing; only documents changed afterwards, not the firmware source |
+| Firmware version (app descriptor) | `a6534e2-dirty`, ESP-IDF v5.5.3 |
+| Local incremental image `build/FoloToy-AI-Passport.bin` (scale 1) | SHA-256 `4753aa378f8822e26576f2aad25ffcdb2a4fe71754df84ad97539251039645de` (1,151,136 bytes) |
+| Time-scaled `build-fast/FoloToy-AI-Passport.bin` (scale 60) | SHA-256 `df5ef56389da2c56cda56fab73e86fadcade141e729f9a9dae51f6eaa97834e3` (1,151,136 bytes) |
+| `build/FoloToy-AI-Passport-full.bin` from the complete gate | SHA-256 `e454c45342962d2d258a672c955c775a0670698b9bd89db009ec2578506475b8` (1,216,672 bytes, flash at `0x0`) |
+| Matching ELF | SHA-256 `5232a4a35b3c11e2666a24be472aa564fb2550db4422148712b2bf7de0d86e77` |
+| Debug archive | `build/firmware/e454c45342962d2d258a672c955c775a0670698b9bd89db009ec2578506475b8/`, `archive_firmware.py verify` passes |
+| App size | 1,151,136 / 8,323,072 bytes (about 14% of the factory partition). 340,768 bytes more than M4 + M5, almost all of it the NimBLE Bluetooth stack |
+| Configuration | `sdkconfig.defaults` adds `CONFIG_BT_NIMBLE_ENABLE_CONN_REATTEMPT=n`. Per rule 9, the local `sdkconfig` and `build-fast/sdkconfig` were deleted and rebuilt, and grep confirmed: normal build 48 KB / IRAM-safe / scale 1 / reattempt off; time-scaled build 48 KB / IRAM-safe / scale 60 / reattempt off |
+| Image flashed to the device | None; M6 has not been flashed. The device still runs the M4 + M5 normal build `18b09ff8…ab7f` |
+
+### Results
+
+```text
+Build: PASS (normal and time-scaled builds compile in the sandbox without warnings; after changing sdkconfig.defaults the local sdkconfig files were deleted and rebuilt per rule 9 and grep confirmed the values; validate.sh firmware build, merged image, partition layout, and archive verification all pass)
+Host tests: PASS (validate.sh repository checks, actionlint, and all host tests pass, including the new test_pupu_sync_proto, test_pupu_sync_web (Node), and test_pupu_ble_contract; the two macOS workarounds from M0 are still needed)
+Device tests: NOT RUN (the device is not connected to the computer; M6 has not been flashed)
+Unverified: every item on the M6 device acceptance checklist (a real Bluetooth connection, catch-up, save download, the phone leaving, memory over 20 open/close cycles, RF calibration, closing early, the wave and chime); the fuel-gauge retry; free memory with Bluetooth on; deep-sleep catch-up and "welcome back" on the time-scaled build (left from M4); whether a key press while off moved the picker an extra step and whether sounds crackle (left from M4 + M5, needs your confirmation); power use with the screen off and in deep sleep
+```
+
+### Notes
+
+- A local web server (`python3 -m http.server`) is blocked in Claude's sandbox (listening on a port is not allowed), so the page was tried in a browser through a temporary copy with the protocol code inlined. Running the README command in your own terminal has no such limit.
+- For logging: the sync page logs one `pupu_sync` line per request and reply, and the Bluetooth module logs a `pupu_ble` memory line before starting, after starting, and after stopping; those lines show the memory over the 20 open/close cycles.
 
 ## Next step
 
-1. **Remaining checks** (possible with the normal build now on the device): in the mini-game, hold OK to quit; tap OK and then hold it right away, which must also quit; win a 4th time in one day, and the result says today's candy is used up.
-2. **Flash the time-scaled build (scale 60, needs your approval)**: deep sleep 5 minutes after the screen goes off (5 pet hours); after a key wakes it, the welcome message should show about 5 hours, and the stats should drop by the catch-up rules without going below 10. The logging must avoid the "reopening the serial port restarts the device" problem this time.
-3. Then do **M6 Bluetooth sync and Mac web page**.
-
-Running the complete gate still needs the two macOS workarounds recorded under M0 above.
+1. **M6 device acceptance** (needs your approval to flash): connect the device first. Flashing the **time-scaled build** (`build-fast`, scale 60) first is recommended; go through the "Device acceptance checklist" above, testing the fuel gauge and the deep-sleep catch-up left from M4 along the way; then flash the normal build back. Both flashes write the parts separately and leave the save alone.
+2. **Before M7, the WeChat mini program, you need to**: register a personal mini program at mp.weixin.qq.com (real-name, 18 or older, an email not used on any other WeChat platform); declare Bluetooth in its user privacy guide; install WeChat DevTools.
+3. Running the complete gate still needs the two macOS workarounds recorded under M0 above, and now also Node.js 18 or newer.

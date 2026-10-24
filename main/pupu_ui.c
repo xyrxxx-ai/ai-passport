@@ -16,12 +16,14 @@
 pupu_anim_t pupu_ui_pet_anim(const pupu_model_t *m, pupu_pose_t pose) {
     static const pupu_anim_t child[] = {
         PUPU_ANIM_CHILD_IDLE, PUPU_ANIM_CHILD_EAT, PUPU_ANIM_CHILD_HAPPY,
-        PUPU_ANIM_CHILD_DODGE, PUPU_ANIM_CHILD_SHAKE,
+        PUPU_ANIM_CHILD_DODGE, PUPU_ANIM_CHILD_SHAKE, PUPU_ANIM_CHILD_WAVE,
     };
     static const pupu_anim_t adult[] = {
         PUPU_ANIM_ADULT_IDLE, PUPU_ANIM_ADULT_EAT, PUPU_ANIM_ADULT_HAPPY,
-        PUPU_ANIM_ADULT_DODGE, PUPU_ANIM_ADULT_SHAKE,
+        PUPU_ANIM_ADULT_DODGE, PUPU_ANIM_ADULT_SHAKE, PUPU_ANIM_ADULT_WAVE,
     };
+    _Static_assert(sizeof(child) / sizeof(child[0]) == PUPU_POSE_WAVE + 1, "one anim per pose");
+    _Static_assert(sizeof(adult) / sizeof(adult[0]) == PUPU_POSE_WAVE + 1, "one anim per pose");
     const bool grown = m->stage == PUPU_STAGE_ADULT;
     if (pose == PUPU_POSE_IDLE && m->full < PUPU_STARVING_BELOW) {
         return grown ? PUPU_ANIM_ADULT_HUNGRY : PUPU_ANIM_CHILD_HUNGRY;  // 很饿:趴着不动
