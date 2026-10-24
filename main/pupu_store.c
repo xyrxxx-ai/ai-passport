@@ -4,6 +4,7 @@
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
+#include "freertos/semphr.h"
 #include "freertos/task.h"
 #include "nvs.h"
 
@@ -20,10 +21,21 @@ static const char *TAG = "pupu_store";
 
 static const char *const k_keys[2] = {"slot_a", "slot_b"};
 
+// 每份快照带一个编号,用来判断"写完了没有"(pupu_store_busy / pupu_store_flush)。
+typedef struct {
+    pupu_save_t save;
+    uint32_t gen;
+} job_t;
+
 static nvs_handle_t s_nvs;
 static QueueHandle_t s_queue;
-static pupu_slot_plan_t s_plan;  // 启动后只有存档任务在用
+static SemaphoreHandle_t s_written;  // 存档任务每处理完一份快照给一次
+static pupu_slot_plan_t s_plan;      // 启动后只有存档任务在用
 static bool s_ready;
+static portMUX_TYPE s_lock = portMUX_INITIALIZER_UNLOCKED;
+static uint32_t s_gen_queued;  // 最新交出去的编号(s_lock 保护)
+static uint32_t s_gen_done;    // 存档任务处理完的编号(s_lock 保护)
+static uint32_t s_gen_ok;      // 最近一次写成功的编号(s_lock 保护)
 
 static pupu_slot_read_t read_slot(int i, pupu_save_t *out) {
     pupu_slot_read_t r = {.present = true, .status = PUPU_SAVE_BAD_LENGTH, .seq = 0};
@@ -50,21 +62,26 @@ static pupu_slot_read_t read_slot(int i, pupu_save_t *out) {
 
 static void save_task(void *arg) {
     (void)arg;
-    pupu_save_t s;
+    job_t job;
     uint8_t rec[PUPU_SAVE_RECORD_SIZE];
     for (;;) {
-        if (xQueueReceive(s_queue, &s, portMAX_DELAY) != pdTRUE) continue;
-        const size_t n = pupu_save_encode(&s, s_plan.next_seq, rec, sizeof(rec));
+        if (xQueueReceive(s_queue, &job, portMAX_DELAY) != pdTRUE) continue;
+        const size_t n = pupu_save_encode(&job.save, s_plan.next_seq, rec, sizeof(rec));
         const char *key = k_keys[s_plan.write];
         esp_err_t err = n > 0 ? nvs_set_blob(s_nvs, key, rec, n) : ESP_ERR_INVALID_SIZE;
         if (err == ESP_OK) err = nvs_commit(s_nvs);
         if (err != ESP_OK) {
             // 下次还写同一个槽;绝不为了腾地方擦除 NVS。
             ESP_LOGE(TAG, "写 %s 失败: %s", key, esp_err_to_name(err));
-            continue;
+        } else {
+            ESP_LOGI(TAG, "已存档 %s 序号 %" PRIu32, key, s_plan.next_seq);
+            pupu_slot_advance(&s_plan);
         }
-        ESP_LOGI(TAG, "已存档 %s 序号 %" PRIu32, key, s_plan.next_seq);
-        pupu_slot_advance(&s_plan);
+        taskENTER_CRITICAL(&s_lock);
+        s_gen_done = job.gen;
+        if (err == ESP_OK) s_gen_ok = job.gen;
+        taskEXIT_CRITICAL(&s_lock);
+        xSemaphoreGive(s_written);
     }
 }
 
@@ -90,8 +107,9 @@ pupu_store_boot_t pupu_store_start(pupu_save_t *out) {
              s_plan.next_seq, s_plan.corrupt ? ",存档坏了" : "",
              s_plan.locked ? ",有更新版本的存档,这次不写" : "");
 
-    s_queue = xQueueCreate(1, sizeof(pupu_save_t));
-    if (s_queue == NULL ||
+    s_queue = xQueueCreate(1, sizeof(job_t));
+    s_written = xSemaphoreCreateBinary();
+    if (s_queue == NULL || s_written == NULL ||
         xTaskCreate(save_task, "pupu_store", TASK_STACK, NULL, TASK_PRIORITY, NULL) != pdPASS) {
         ESP_LOGE(TAG, "存档任务启动失败;这次开机不能存档");
         return boot;
@@ -101,7 +119,44 @@ pupu_store_boot_t pupu_store_start(pupu_save_t *out) {
     return boot;
 }
 
+// 交出一份快照,返回它的编号;不能存档时返回 0。
+static uint32_t enqueue(const pupu_save_t *s) {
+    if (!s_ready || s_plan.locked) return 0;
+    job_t job = {.save = *s};
+    taskENTER_CRITICAL(&s_lock);
+    job.gen = ++s_gen_queued;
+    if (job.gen == 0) job.gen = ++s_gen_queued;  // 0 留给"没有交出去"
+    taskEXIT_CRITICAL(&s_lock);
+    xQueueOverwrite(s_queue, &job);
+    return job.gen;
+}
+
 void pupu_store_save(const pupu_save_t *s) {
-    if (!s_ready || s_plan.locked) return;
-    xQueueOverwrite(s_queue, s);
+    (void)enqueue(s);
+}
+
+bool pupu_store_busy(void) {
+    taskENTER_CRITICAL(&s_lock);
+    const bool busy = s_gen_done != s_gen_queued;
+    taskEXIT_CRITICAL(&s_lock);
+    return busy;
+}
+
+bool pupu_store_flush(const pupu_save_t *s, uint32_t timeout_ms) {
+    const uint32_t gen = enqueue(s);
+    if (gen == 0) return false;
+    const TickType_t start = xTaskGetTickCount();
+    const TickType_t limit = pdMS_TO_TICKS(timeout_ms);
+    for (;;) {
+        taskENTER_CRITICAL(&s_lock);
+        const bool done = (int32_t)(s_gen_done - gen) >= 0;
+        const bool ok = s_gen_ok == gen;
+        taskEXIT_CRITICAL(&s_lock);
+        if (done) return ok;
+        const TickType_t spent = xTaskGetTickCount() - start;
+        if (spent >= limit || xSemaphoreTake(s_written, limit - spent) != pdTRUE) {
+            ESP_LOGE(TAG, "等存档写完超时(%" PRIu32 " ms)", timeout_ms);
+            return false;
+        }
+    }
 }

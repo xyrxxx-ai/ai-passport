@@ -46,7 +46,8 @@ typedef struct {
 
 // 开机时读好的信息。token 是会话令牌:设备端每次存档都写进存档,同一个值也放在
 // RTC_NOINIT_ATTR 变量里;断过电时 RTC 内存是乱码,两边就对不上。设备端只在
-// 连续性检查不通过时才换新令牌,通过时沿用存档里的令牌。
+// 连续性检查不通过时才换新令牌,通过时沿用存档里的令牌。令牌永远不是 0:
+// 存档里的令牌是 0(M3 及更早的固件写的)时一律当作断过电。
 typedef struct {
     pupu_reset_reason_t reason;  // esp_reset_reason()
     uint64_t saved_token;        // 存档里的令牌

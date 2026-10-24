@@ -45,6 +45,11 @@ void pupu_autosave_mark(pupu_autosave_t *a, uint32_t now_ms) {
     a->due_ms = now_ms + PUPU_SAVE_DELAY_MS;
 }
 
+void pupu_autosave_request(pupu_autosave_t *a, uint32_t now_ms) {
+    a->dirty = true;
+    a->due_ms = now_ms;
+}
+
 void pupu_autosave_battery(pupu_autosave_t *a, int soc, uint32_t now_ms) {
     if (soc < 0) return;
     const bool low = soc < PUPU_SAVE_BATTERY_LOW;

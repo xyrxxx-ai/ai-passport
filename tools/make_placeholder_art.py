@@ -8,6 +8,7 @@ pixel art later (for example from Piskel) and rerun tools/gen_pupu_assets.py.
 Runs on the system Python 3.9 with Pillow: /usr/bin/python3 tools/make_placeholder_art.py
 """
 
+import math
 import sys
 from pathlib import Path
 
@@ -18,7 +19,8 @@ ART_DIR = ROOT / "assets" / "images" / "pupu"
 W = 48
 
 CLEAR, OUTLINE, FACE, FACE_HI, EYE, BLUSH, HORN, HORN_DARK = range(8)
-WOOL_LIGHT, WOOL_MID, WOOL_DARK, SHELL, SHELL_DARK, INK = range(8, 14)
+WOOL_LIGHT, WOOL_MID, WOOL_DARK, SHELL, SHELL_DARK, INK, STAR, CLOUD = range(8, 16)
+ICON_W = 24
 
 
 def read_palette(path):
@@ -33,17 +35,18 @@ def read_palette(path):
 
 
 class Frame:
-    def __init__(self):
-        self.px = [[CLEAR] * W for _ in range(W)]
+    def __init__(self, size=W):
+        self.size = size
+        self.px = [[CLEAR] * size for _ in range(size)]
 
     def put(self, x, y, slot):
-        if 0 <= x < W and 0 <= y < W:
+        if 0 <= x < self.size and 0 <= y < self.size:
             self.px[y][x] = slot
 
     def ellipse(self, cx, cy, rx, ry, fill, outline=None, shade=None):
         """Filled ellipse; optional 1 px outline and a lower shadow band."""
-        for y in range(W):
-            for x in range(W):
+        for y in range(self.size):
+            for x in range(self.size):
                 dx, dy = x - cx, y - cy
                 if dx * dx * ry * ry + dy * dy * rx * rx > rx * rx * ry * ry:
                     continue
@@ -230,8 +233,80 @@ ANIMS += [("adult_hungry", [lambda f: adult_hungry(f, 0), lambda f: adult_hungry
 ANIMS += [("adult_" + name, frames) for name, frames in reaction_frames(adult)]
 
 
+# Mini-game icons (M5), 24 x 24, one frame each.
+def draw_star(f):
+    """A chubby five-point star: outline, gold body, one white glint."""
+    c = 11.5
+    outer, inner = 11.0, 5.2
+    pts = []
+    for k in range(10):
+        r = outer if k % 2 == 0 else inner
+        a = -math.pi / 2 + k * math.pi / 5
+        pts.append((c + r * math.cos(a), c + 1 + r * math.sin(a)))
+
+    def inside(x, y):
+        hit = False
+        j = len(pts) - 1
+        for i in range(len(pts)):
+            xi, yi = pts[i]
+            xj, yj = pts[j]
+            if (yi > y) != (yj > y) and x < (xj - xi) * (y - yi) / (yj - yi) + xi:
+                hit = not hit
+            j = i
+        return hit
+
+    for y in range(ICON_W):
+        for x in range(ICON_W):
+            if inside(x + 0.5, y + 0.5):
+                f.put(x, y, STAR)
+    for y in range(ICON_W):
+        for x in range(ICON_W):
+            if f.px[y][x] == STAR and any(
+                    not (0 <= x + dx < ICON_W and 0 <= y + dy < ICON_W) or f.px[y + dy][x + dx] == CLEAR
+                    for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1))):
+                f.put(x, y, OUTLINE)
+    f.put(10, 8, EYE)
+    f.put(10, 9, EYE)
+    f.put(11, 8, EYE)
+
+
+def draw_cloud(f):
+    """A small grumpy rain cloud: three puffs, outline, two eyes."""
+    for cx, cy, rx, ry in ((8, 13, 6, 5), (14, 10, 7, 6), (18, 14, 5, 4), (12, 15, 8, 4)):
+        f.ellipse(cx, cy, rx, ry, CLOUD)
+    for y in range(ICON_W):
+        for x in range(ICON_W):
+            if f.px[y][x] == CLOUD and any(
+                    not (0 <= x + dx < ICON_W and 0 <= y + dy < ICON_W) or f.px[y + dy][x + dx] == CLEAR
+                    for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1))):
+                f.put(x, y, OUTLINE)
+    for ex in (10, 15):
+        f.put(ex, 13, EYE)
+        f.put(ex, 14, OUTLINE)
+    for dx in (8, 13, 18):  # rain drops
+        f.put(dx, 21, INK)
+        f.put(dx - 1, 22, INK)
+
+
+ICONS = [("icon_star", draw_star), ("icon_cloud", draw_cloud)]
+
+
 def main():
     palette = read_palette(ART_DIR / "pupu.gpl")
+    for name, paint in ICONS:
+        frame = Frame(ICON_W)
+        paint(frame)
+        image = Image.new("RGBA", (ICON_W, ICON_W), (0, 0, 0, 0))
+        pixels = image.load()
+        for y in range(ICON_W):
+            for x in range(ICON_W):
+                slot = frame.px[y][x]
+                if slot != CLEAR:
+                    r, g, b = palette[slot]
+                    pixels[x, y] = (r, g, b, 255)
+        out = ART_DIR / "{}.png".format(name)
+        image.save(out, optimize=True)
+        print("wrote {} ({} x {})".format(out.relative_to(ROOT), ICON_W, ICON_W))
     for name, painters in ANIMS:
         strip = Image.new("RGBA", (W * len(painters), W), (0, 0, 0, 0))
         pixels = strip.load()

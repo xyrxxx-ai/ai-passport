@@ -56,6 +56,14 @@ run_static_checks() {
         -o "${test_dir}/test_pupu_input"
     "${test_dir}/test_pupu_input"
     "${CC:-cc}" -std=c11 -Wall -Wextra -Werror -Imain \
+        tests/test_pupu_power.c main/pupu_power.c \
+        -o "${test_dir}/test_pupu_power"
+    "${test_dir}/test_pupu_power"
+    "${CC:-cc}" -std=c11 -Wall -Wextra -Werror -Imain \
+        tests/test_catch_model.c main/catch_model.c \
+        -o "${test_dir}/test_catch_model"
+    "${test_dir}/test_catch_model"
+    "${CC:-cc}" -std=c11 -Wall -Wextra -Werror -Imain \
         tests/test_pupu_save_policy.c main/pupu_save_policy.c main/pupu_save_codec.c \
         main/pupu_model.c -o "${test_dir}/test_pupu_save_policy"
     "${test_dir}/test_pupu_save_policy"
@@ -95,6 +103,7 @@ run_static_checks() {
     PYTHONDONTWRITEBYTECODE=1 python3 tests/test_battery_profile.py
     PYTHONDONTWRITEBYTECODE=1 python3 tests/test_deep_sleep_contract.py
     PYTHONDONTWRITEBYTECODE=1 python3 tests/test_key_wake_contract.py
+    PYTHONDONTWRITEBYTECODE=1 python3 tests/test_pupu_deep_sleep_contract.py
     PYTHONDONTWRITEBYTECODE=1 python3 tests/test_pupu_charset.py
     PYTHONDONTWRITEBYTECODE=1 python3 tests/test_pupu_assets_fresh.py
     PYTHONDONTWRITEBYTECODE=1 python3 tests/test_check_repo.py

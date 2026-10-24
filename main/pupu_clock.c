@@ -31,6 +31,7 @@ bool pupu_clock_reset_keeps_rtc(pupu_reset_reason_t reason) {
 bool pupu_clock_boot(pupu_clock_t *c, const pupu_boot_info_t *boot, uint64_t *away_real_s) {
     *away_real_s = 0;
     if (!pupu_clock_reset_keeps_rtc(boot->reason)) return false;
+    if (boot->saved_token == 0) return false;  // 0 不是有效令牌(M3 及更早的存档都写 0)
     if (boot->saved_token != boot->rtc_token) return false;
     if (boot->now_rtc_us < boot->saved_rtc_us) return false;
 

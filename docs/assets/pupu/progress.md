@@ -9,9 +9,9 @@ Update this document at the end of every milestone. The product design is in [de
 ## Current state
 
 - **Branch**: `feature/pupu-v1`, created from `006c227` on `origin/main`. It has no upstream tracking branch and is never pushed.
-- **Done**: M0 preparation, M1 pet rule core, M2 first screen, M3 care actions, sound effects, save data. Most of the M3 on-device acceptance passes; the two remaining checks need the normal build, and you chose to commit first and run them at the first M4 flash (see the M3 section).
-- **Next step**: M4 screen off, deep sleep, and continuous clock.
-- **Commit state**: M0 (`2c77a38`), M1 (`dcf9342`), and M2 (`2ad5410`), and M3 are committed to the local `feature/pupu-v1`. The M3 commit hash is recorded in the M4 section (a commit cannot contain its own hash). Nothing is pushed.
+- **Done**: M0 preparation, M1 pet rule core, M2 first screen, M3 care actions, sound effects, save data. The code and host tests for M4 (screen off, deep sleep, and continuous clock) and M5 (mini-game "Catch the Stars") are done and the complete gate passes; as you asked, both milestones were built and tested on the device together. Most of the normal-build device acceptance passes, and so do the three remaining M3 checks (see "M4 + M5 device acceptance").
+- **Next step**: test the few remaining mini-game key checks, flash the time-scaled build for deep-sleep catch-up and "welcome back" (see "Next step" at the end), then M6.
+- **Commit state**: M0 (`2c77a38`), M1 (`dcf9342`), M2 (`2ad5410`), and M3 (`c6ba37a`) are committed to the local `feature/pupu-v1`. With your approval, M4 and M5 are committed together as one commit on the local `feature/pupu-v1`; its hash is recorded in the next milestone's section (a commit cannot contain its own hash). Nothing is pushed.
 
 ## Milestones
 
@@ -21,8 +21,8 @@ Update this document at the end of every milestone. The product design is in [de
 | M1 | Pet rule core | Done |
 | M2 | First screen: see Pupu | Done |
 | M3 | Care actions, sound effects, save data | Done (two device checks moved to M4) |
-| M4 | Screen off, deep sleep, and continuous clock | Not started |
-| M5 | Mini-game "Catch the Stars" | Not started |
+| M4 | Screen off, deep sleep, and continuous clock | Done; normal-build device acceptance passes; time-scaled deep-sleep catch-up still to test |
+| M5 | Mini-game "Catch the Stars" | Done; most device acceptance passes; hold to quit and 4th win still to test |
 | M6 | Bluetooth sync and Mac web page | Not started |
 | M7 | WeChat mini program | Not started |
 | M8 | Full-device acceptance and wrap-up | Not started |
@@ -364,9 +364,166 @@ Unverified: fourth pat dodges (the window is only 9 to 10 seconds in the time-sc
 - When building inside the sandbox, the component manager tries to reach `components-file.espressif.com` to check for updates and is blocked. The build is not affected; this can be ignored.
 - The serial log was recorded by a small time-limited reader script, not the interactive monitor. Opening the port restarts the device once (`USB_UART_CHIP_RESET` in the log); the reset reason is USB and the save is not affected.
 
+## M4 screen off, deep sleep, and continuous clock (2026-10-24, code done, waiting for device acceptance)
+
+The M3 commit hash is `c6ba37a`.
+
+### What was done
+
+- **Screen-off state machine, `pupu_power`** (pure logic, host test `tests/test_pupu_power.c`): after 20 s with nothing happening the backlight dims to 30%; at 45 s the screen goes off (DISPOFF, backlight 0, no more drawing); 5 minutes after the screen goes off the device deep-sleeps.
+  - "Something happening" means a key or being busy. Busy means: a sound is playing, a save is being written, Pupu is eating or reacting, the egg is being warmed or is hatching, or the mini-game is counting down or playing (pause does not count).
+  - While the screen is fully on, being busy keeps restarting the timer, so the end of a busy period counts as activity. Once dimmed or off, being busy only holds the next step; it does not restart the timer.
+  - While the screen is off, only a press wakes it, and that press is not passed to the page. From then on every key event is swallowed until 250 ms after the waking key is released, so no extra click gets through. Other events while the screen is off (for example the release of the OK that was held to turn the screen off) are simply swallowed.
+  - Holding OK on the home page turns the screen off at once.
+- **Fixed the small hole in `key_guard`**: after a key wakes the device from deep sleep, the guard used to let keys through on release, but the button driver sends the click about 185 ms later, so one extra click got through. It now keeps swallowing for 250 ms after the release. As the plan requires, the two existing "release passes immediately" assertions in `tests/test_key_guard.c` were **changed**, and a case where the deadline arrives during those 250 ms was added. The structure of `on_key` in `main.c` is unchanged.
+- **Deep sleep**: a new worker task, `pupu_ctl` (priority 3, below LVGL), shuts things down in the order of `demo_low_power.c`: synchronous save (waits until it is in Flash) → give up and retry in 10 s if a key is held or was pressed while waiting → hand the key pin back to digital input → arm key wake-up (keys only, no timer) → fuel gauge to sleep → stop sound effects, then the audio codec → release I2C → take the LVGL lock and put the display to sleep → deep sleep; restart if it ever returns. The new `tests/test_pupu_deep_sleep_contract.py` checks this order, that the main loop stops touching I2C and saves before handing the command over, and that nothing ever calls `lvgl_port_stop`.
+- **Saves**: `pupu_store` can now tell whether a save is still being written and can save synchronously and wait (deep sleep only). The screen dimming or turning off saves right away (still waiting for sounds to finish; new function `pupu_autosave_request`, with a test).
+- **Catch-up at boot**: every save stores a session token and the RTC time; the token is also kept in an `RTC_NOINIT` variable. At boot, the reset reason, the token, and whether the RTC went backwards decide whether time was continuous. If it was (wake from deep sleep, USB or software reset), time away is caught up (at most 8 hours, floor 10) and the token is kept. If not (power cut, or a save from before M4), Pupu stays as saved and a new token is made.
+  - A token of 0 always means "power was cut" (every M3 save stores 0); `pupu_clock.c` has this rule and a test.
+  - `pupu_app.c` checks with `_Static_assert` that all 16 reset-reason numbers match ESP-IDF.
+  - Every boot saves once soon after starting, so the next boot can use the new token.
+- **"Welcome back"**: when the caught-up time away (pet time) is over 1 hour, the home bubble (or the egg page while still an egg) shows the welcome message with the number of hours for 4 seconds. Its characters were already in the character list.
+- **Fuel gauge**: Pupu is drawn first, then `pupu_ctl` initializes the fuel gauge (it waits at least 100 ms and up to 5 s); until then the top bar shows no battery. This now happens on every boot, not only after deep sleep.
+
+### What the tests cover
+
+- `test_pupu_power.c`: the 20 s, 45 s, and 5-minute boundaries (each also 1 ms early); the millisecond counter wrapping around mid-way; keys restarting the timer; keys working normally while dimmed; one press while off, with its press, release, and the click 185 ms later all swallowed and keys passing again at 250 ms; long press and phantom keys swallowed while the waking key is held; at most 10 s of swallowing if a key is stuck; only a press wakes the screen; deep sleep 5 minutes after holding OK to turn the screen off; busy holding off the dim and the 20 s restarting when it ends; busy only holding (not restarting) once dimmed or off; retry 10 s after a refused deep sleep; a key time slightly later than the main loop's time is not misread.
+- `test_key_guard.c`, `test_pupu_clock.c` (token 0), and `test_pupu_save_policy.c` (save now) gained the matching cases.
+- Mutation check: putting the old unsigned time comparison back makes the new tests fail.
+
+### Code review
+
+Four independent reviewers each checked one area of M4 (keys and screen off, deep sleep and concurrency, clock continuity, tests and repository rules), and another reviewer tried to refute every finding. Two real problems were confirmed; both are fixed and tested:
+
+1. **Wrap-around when a key's time is later than the main loop's time**: while the main loop handles a key (for example drawing a frame on wake), the button callback can queue another event with a later time. The unsigned subtraction then becomes a huge number, so the screen dims right after waking and an extra click gets through. Fix: `pupu_power` compares times as signed numbers, and the main loop reads the time again after handling keys (which also closes the same latent issue in the egg page's 3-second hold).
+2. **When the worker task is unavailable, deep-sleep requests kept pushing the periodic save back**: a save now counts as done only when the command really reached the worker task.
+
+### Decisions made while coding (you can overrule them)
+
+1. While dimmed, keys work normally (the screen is still visible) and also restore the brightness; only the press that wakes a screen that is off does nothing else.
+2. After waking, events from **all** keys are swallowed until 250 ms after the waking key is released, not only that key: another key while one is held is most likely a phantom. The cost is that pressing a different key within 250 ms of the release is also swallowed.
+3. A catch-up of over 1 hour after a USB or software reset also shows "welcome back" (same rule as waking from deep sleep). The hours are pet time, so in the time-scaled build 5 minutes away shows 5 hours.
+4. If a key is pressed during the few tens of milliseconds spent saving, that deep sleep is abandoned and retried 10 s later.
+5. Every boot saves once (one extra Flash write, so the next boot can continue).
+
+### Interface notes for later milestones
+
+- **Busy**: `app_busy()` in `pupu_app.c`; the M6 sync window must be added there while it is open.
+- **Deep sleep**: `pupu_ctl_deep_sleep()`; M6 Bluetooth on/off also belongs in `pupu_ctl` (plan section 2.1).
+- **Sync catch-up**: boot catch-up is in `catch_up_at_boot()`. When M6 receives TIME, follow the order set in M1: `pupu_clock_sync()` → `pupu_model_catch_up()` → `pupu_model_apply_sync()`, and show "welcome back" the same way when away for over 1 hour.
+
+## M5 mini-game "Catch the Stars" (2026-10-24, code done, waiting for device acceptance)
+
+### Scenario table (Gate 0)
+
+Keys: Up is above Down (you confirmed this in M2). Up moves one lane up.
+
+| Scenario | Keys | Expected | How to accept |
+| --- | --- | --- | --- |
+| Start | Choose "Catch the Stars" on the Play page and press OK | 3-2-1 countdown (a beep for each number) with the hint "Up/Down change lane, catch stars, dodge clouds"; the countdown is not part of the 25 s; lanes can be changed during it | Watch the screen |
+| 3 s of lane changes | Press Up/Down quickly | One lane per press, none lost or extra; stops at the top and bottom | Log: longest "lane change to drawn" is 50 ms or less |
+| Pause and resume | Press OK once; press OK again | The first press pauses at once and shows the pause card; releasing the second press resumes; the seconds do not jump | Watch the screen |
+| Hold to quit | Hold OK during play, or tap and then hold right away | Pauses first, then returns to the Play page after 0.5 s; nothing changes | Log: "round does not count" |
+| 8 or more stars | Play the full 25 s well | Result card: N stars, a win, happiness +15, bond +3, candy +1, fullness -5; saved about 1 s after the sound ends | Log shows exactly one settlement |
+| Fewer than 8 | Do not move | "So close!", fullness -5 | Same |
+| 4th win of the day | Win 4 times | The 4th says today's candy is used up; happiness and bond are still added | Read the result card |
+| Quit and re-enter | Quit, then enter again | A new round from the start | Memory log does not keep rising |
+| Screen off while paused | Pause, then press nothing | Dims at 20 s, off at 45 s, the round is voided; after waking, the Play page is shown | Watch the screen and log |
+| Targets | Whole round | At least 30 frames per second; at least 4 KB free in the LVGL pool | Log: "minimum frames per second", "pool free" |
+
+### What was done
+
+- **Pure logic, `catch_model` and `catch_layout.h`**: 20 ms per step, 1250 steps (25 s) per round, a 150-step countdown; 3 lanes (80 px each from y = 56); Pupu at x 8–56; stars and clouds fly in from beyond the right edge at about 131 px/s; an item is scored once, on the frame its centre crosses the catch line (x = 44), using Pupu's lane at that moment; a cloud costs 1 star, never below 0; at most 8 items at once, and a spawn is skipped when all are in use; seeded xorshift32 randomness. All tuning numbers are in one struct, `catch_tuning`.
+- **`tests/test_catch_model.c`** (registered in `tools/validate.sh`): layout (lanes on screen and clear of the rounded corners, spawning off screen, the catch line inside Pupu, rounding of negative coordinates); the countdown; a round lasting exactly 1250 steps; everything frozen while paused; hold to quit (also while paused); lanes stopping at the edges; scoring (on the crossing frame, only once, clouds floored at 0, missed stars flying on); a full pool skipping a spawn without disturbing the random sequence; the same seed and keys giving the same round; across 200 rounds, spawn spacing, the cloud ratio, and every item scored before the end; **balance**: a perfect bot (pressing at most every 100 ms, like a person) gets at least 13 stars and wins all 200 rounds, while a bot that stays in the middle lane wins only 37 of 200.
+- **A third key mode** (GAME mode in `pupu_input`, with tests): OK pauses on press; pressing again while paused and releasing within 0.5 s resumes; holding for 0.5 s quits. That hold is timed by the app, not by the driver's long press, because the driver sends no long press for a tap followed straight away by a hold. While Up/Down is held or was released less than 120 ms ago, OK is treated as a phantom key, but quick alternation between Up and Down is not limited by the 120 ms rule.
+- **Page, `pupu_ui_catch.c`**: on this page the main loop runs every 20 ms and advances by accumulated real time, at most 5 steps at once. On entry it creates everything once: 8 item icons, Pupu at 1× (a 48 × 48 canvas; happy on a star, flinching on a cloud), the seconds and star count, the countdown badge, the pause card, and the result card; nothing is created or deleted during play, and the background is a solid colour. The first "finished" event settles the round once (`pupu_model_apply_catch_result`), and the result card shows what was actually gained; the save happens after the sound. No periodic saves while a round is unfinished.
+- **Assets**: the two spare palette slots became star gold and cloud grey; `make_placeholder_art.py` draws a 24 × 24 star and cloud; `gen_pupu_assets.py` converts them to RGB565A8 (1,728 bytes each). The pixels of the existing 31 frames did not change by a single byte. The README is updated.
+- **Sounds**: countdown beep, a "ding" for a star, a "bonk" for a cloud, win, and lose. A gap fix came along: a pause used to just let the task sleep while earlier notes were still queued in DMA, so it could not be heard; pauses are now written as silent samples (this also affects the M3 chew and happy sounds, whose gaps can now actually be heard).
+- **Font**: 25 new characters (including the arrows U+2191 and U+2193); the regenerated font has 196 glyphs.
+
+### Code review
+
+Three independent reviewers each checked one area of M5 (rules and tests, page and integration, assets, text, and sound), and another reviewer tried to refute every finding. Three real problems were confirmed and fixed:
+
+1. Tapping OK and then holding it right away: the driver sends no long press, so releasing resumed the game instead of quitting (medium). The hold is now timed by the app, with a test.
+2. Frames were still counted while paused, so the logged "minimum frames per second" could be 0 (low). Counting now stops on pause and restarts on resume.
+3. The pause inside the win sound could not be heard (low). See "Sounds" above.
+
+### Decisions made while coding (you can overrule them)
+
+1. **Spawn interval changed to 900–1000 ms** (the plan says 700–1000 ms): at 700–1000 ms a player who never moves still wins 28% of rounds, which hands out candy for free; at 900–1000 ms that drops to 18.5%, while an attentive player still has 13–25 stars to catch per round. The numbers are in `catch_tuning` and can be changed any time.
+2. Lanes can be changed during the countdown; OK does not pause during the countdown, but holding it still quits.
+3. For 0.6 s after the result appears, keys are ignored (so keys from the game do not leak in); after that, OK (click or hold) returns to the Play page. There is no "play again" button.
+4. Quitting mid-round returns to the Play page without a message.
+5. In the mini-game Pupu looks happy on a star and flinches on a cloud, for 0.3 s each.
+6. The big countdown digits use Montserrat 20 (digits only, no Chinese font needed).
+
+### Interface notes for later milestones
+
+- Star candy can now be won in the mini-game, so the "feed star candy" check left from M3 can be tested.
+- `pupu_ui_catch_leave()` on the mini-game page voids an unfinished round; any future forced exit (for example M6 sync) must also go through `show_page()`.
+
+## M4 + M5 build identity
+
+| Item | Value |
+| --- | --- |
+| Source | `c6ba37a` (M3) plus the M4 and M5 changes, that is, the M4 + M5 commit. The images above were built before committing from the same source that was committed |
+| Firmware version (app descriptor) | `c6ba37a-dirty`, ESP-IDF v5.5.3 |
+| Local incremental image `build/FoloToy-AI-Passport.bin` (scale 1) | SHA-256 `18b09ff8ccd73b8ebc3933a8f37d42145c7860190a0f2eb3b47a214185d4ab7f` (810,368 bytes) |
+| Time-scaled image `build-fast/FoloToy-AI-Passport.bin` (scale 60) | SHA-256 `0d46e1ed168d26416485d2579cf0791c7e1ab8cd5c7adfce3b1f4763e13366b2` (810,384 bytes) |
+| `build/FoloToy-AI-Passport-full.bin` from the complete gate | SHA-256 `630ff8328d39133bdda254325477ac4d141f3443ea0ad371b6122f399bb4349d` (875,904 bytes, flash at `0x0`) |
+| Matching ELF | SHA-256 `87ecbe9dce6be8b6c2a8825c6ee7c0bffa038da369a86d6c521fb03d1f7cba4f` |
+| Debug archive | `build/firmware/630ff8328d39133bdda254325477ac4d141f3443ea0ad371b6122f399bb4349d/`, `archive_firmware.py verify` passes |
+| Application size | 810,368 / 8,323,072 bytes (about 10% of the factory partition). 53,280 bytes more than M3: the mini-game, icons, new characters, screen off and deep sleep |
+| Configuration | `sdkconfig.defaults` unchanged. grep confirms: normal 48 KB / IRAM-safe / scale 1, time-scaled 48 KB / IRAM-safe / scale 60 |
+| Image flashed to the device | **Normal build** `18b09ff8…ab7f` (checked before flashing, after your approval), written in segments with esptool: bootloader `0x0`, partition table `0x8000`, application `0x10000`, all three verified; NVS (`0x9000`) and RF calibration (`0xF000`) were not erased or written. The time-scaled build is not flashed yet |
+
+## M4 + M5 device acceptance (2026-10-24, normal build, scale 1)
+
+The serial log was recorded on the computer for about 17 minutes across 6 boots. Every number was checked against it.
+
+| Check | Result |
+| --- | --- |
+| M3: save survives a segmented flash | Pass: slot_a sequence 91 was loaded after flashing; still the same young Pupu |
+| M3: 4 pats within 10 minutes, the 4th dodges | Pass: 4 pats within 5 s; the first 3 gave happiness +5 and bond +1, the 4th dodged |
+| M3: feed star candy | Pass: happiness +25, bond +2, candy −1 (fullness 89, not refused) |
+| Rice ball (along the way) | Pass: bond +3 twice while hungry; 70 → 100 capped at +30; refused at 100 |
+| Dim at 20 s, off at 45 s | Pass: each within 0.1 s; the 20 s started only after the pat reaction ended (busy end) |
+| One key press while off | No extra page action appears in the log after waking; whether the bottom picker moved an extra step needs your eyes |
+| Hold OK on home to turn the screen off | Pass: off about 3 s after returning home |
+| Deep sleep 5 minutes after screen off | Pass: deep sleep started 300.07 s after the screen went off; saved first, keys released (GPIO0 = 1), fuel-gauge sleep verified |
+| Key wake, state continues | Pass: boot after the key wake found the RTC continuous and caught up the time away (39 s, about 40 s on the wall clock); the stats matched those before sleep |
+| Power button off and on | Pass (inferred from the log): two boots looked like power cuts, and Pupu stayed as last saved; power is really cut even with USB plugged in. Please confirm the screen went dark |
+| Mini-game: start, countdown, lane changes | Pass: after the 3 s countdown, the round ended exactly 25 s later |
+| Mini-game: pause and resume | Pass: paused twice, resumed twice; the round took exactly 28 s plus the 5.3 s of pauses, so time stops while paused |
+| Mini-game: win | Pass: 19 stars (20 stars and 5 clouds spawned): fullness −5, happiness +15, bond +3, candy +1; saved about 1 s later; settled once |
+| Mini-game: lose | Pass: 0 stars (2 caught, 4 clouds hit): fullness −5, nothing else |
+| Mini-game: screen off while paused | Pass: paused, dimmed at 20 s, off at 45 s, round voided; the Play page was shown after waking |
+| Mini-game: re-entering | Pass: 3 rounds; the LVGL pool was 22% on each game entry and 19% back on the Play page |
+| Targets | Pass: minimum 36 frames per second (40 in round 2), target 30; longest frame 16 ms; longest lane change to drawn 42 ms, target 50; about 37 KB free in the LVGL pool, target 4 KB |
+| Memory | Pass: over 17 minutes the heap stayed at 182,752 bytes and the lowest-ever value stayed at 177,376 bytes |
+| Mini-game: hold OK to quit, tap then hold to quit | **Not tested**: no "quit" entry in the log |
+| Mini-game: 4th win of the day | **Not tested**: only 1 round was won |
+| "Welcome back" | **Not tested**: the normal build needs over 1 hour away; left for the time-scaled build |
+
+**Two things in the log**:
+
+- Before deep sleep there are 4 red lines, `i2s_common: i2s_channel_disable … has not been enabled yet`. ESP-IDF itself prints them: when the BSP shuts audio down it also disables channels that were never enabled, and it explicitly treats that case as success (`bsp_audio.c` says a READY channel is already stopped). No warning follows and deep sleep continues normally. No fix needed.
+- Every time the computer reopens the serial port, the device restarts once (`USB_UART_CHIP_RESET` in the log). So about 1 s after a key woke it from deep sleep, the logging script restarted it again (both boots caught up correctly), and the same happened after power-on. If you saw a second flash after waking, it came from the logging, not the firmware. This will be handled for the time-scaled test.
+
+## M4 + M5 results
+
+```text
+Build: PASS (normal and time-scaled builds both compile in the sandbox without warnings; validate.sh firmware build, merged image, partition layout, and archive verification all pass)
+Host tests: PASS (validate.sh repository checks, actionlint, and all host tests pass, including the new test_pupu_power, test_catch_model, and test_pupu_deep_sleep_contract and the changed test_key_guard; the two macOS workarounds from M0 are still needed)
+Device tests: PASS (normal build, limited to the rows marked Pass above; the three remaining M3 checks also pass)
+Unverified: mini-game hold OK to quit, tap then hold to quit, 4th win of the day; whether a key press while off moved the picker an extra step and whether sounds crackle (needs your confirmation); deep-sleep catch-up and "welcome back" on the time-scaled build; power use with the screen off and in deep sleep
+```
+
 ## Next step
 
-1. Do **M4 screen off, deep sleep, and continuous clock** (section 10 of the plan). Record the M3 commit hash in the M4 section first.
-2. **Finish the last two M3 checks at the first M4 flash**: flash the normal build (scale 1) in segments (needs your approval); after booting, the save should still be there. Then pat 4 times within 10 minutes; the fourth should dodge with "stop patting!".
+1. **Remaining checks** (possible with the normal build now on the device): in the mini-game, hold OK to quit; tap OK and then hold it right away, which must also quit; win a 4th time in one day, and the result says today's candy is used up.
+2. **Flash the time-scaled build (scale 60, needs your approval)**: deep sleep 5 minutes after the screen goes off (5 pet hours); after a key wakes it, the welcome message should show about 5 hours, and the stats should drop by the catch-up rules without going below 10. The logging must avoid the "reopening the serial port restarts the device" problem this time.
+3. Then do **M6 Bluetooth sync and Mac web page**.
 
 Running the complete gate still needs the two macOS workarounds recorded under M0 above.

@@ -91,6 +91,13 @@ static void test_boot_checks(void) {
     b.now_rtc_us = b.saved_rtc_us + HOUR_S * US;
     b.reason = PUPU_RESET_POWERON;
     assert(!pupu_clock_boot(&c, &b, &away));
+
+    // 令牌 0(M3 的存档都写 0):哪怕 RTC 内存碰巧也是 0,也当作断过电。
+    b.reason = PUPU_RESET_USB;
+    b.saved_token = 0;
+    b.rtc_token = 0;
+    assert(!pupu_clock_boot(&c, &b, &away));
+    assert(away == 0 && c.acct_now == T0);
 }
 
 static void test_sync_rules(void) {

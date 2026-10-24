@@ -177,6 +177,21 @@ static void test_autosave_waits_for_sound(void) {
     assert(pupu_autosave_due(&a, 5050 + PUPU_SAVE_EVERY_MS, false));
 }
 
+// 变暗、熄屏时马上存:不等 1 秒,但仍然等音效放完。
+static void test_autosave_request_now(void) {
+    pupu_autosave_t a;
+    pupu_autosave_init(&a, 0);
+    pupu_autosave_mark(&a, 1000);
+    pupu_autosave_request(&a, 1200);
+    assert(pupu_autosave_due(&a, 1200, false));
+    assert(!pupu_autosave_due(&a, 1200, true));
+    pupu_autosave_done(&a, 1200);
+    assert(!a.dirty);
+    pupu_autosave_request(&a, 0xFFFFFFFFu);  // 回绕
+    assert(pupu_autosave_due(&a, 0xFFFFFFFFu, false));
+    assert(pupu_autosave_due(&a, 3, false));
+}
+
 static void test_autosave_periodic(void) {
     pupu_autosave_t a;
     pupu_autosave_init(&a, 100);
@@ -224,6 +239,7 @@ int main(void) {
     test_power_cut_simulation();
     test_autosave_after_change();
     test_autosave_waits_for_sound();
+    test_autosave_request_now();
     test_autosave_periodic();
     test_autosave_battery();
     return 0;

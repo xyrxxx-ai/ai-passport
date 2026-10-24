@@ -8,29 +8,47 @@
 // 组件开始观测前就松了手,组件从头到尾没看到按下,永远不会发 release,守卫就会一直
 // 拦到 deadline 兜底。所以按键驱动初始化完成后,必须按采样到的物理电平同步一次:
 // 已松手立即撤防(见 key_guard_sync_released)。
+//
+// 收到 release 后还要再吞 KEY_GUARD_TAIL_US:按键组件在松手约 185 ms 后才发 CLICK/DOUBLE,
+// release 一到就撤防的话,这个迟到的单击会被当成一次真的按键。
 #pragma once
 
 #include <stdbool.h>
 #include <stdint.h>
 
+// 松手以后再吞多久(微秒)。比按键组件发单击的延迟(约 185 ms)长一些。
+#define KEY_GUARD_TAIL_US (250LL * 1000)
+
 typedef struct {
     // armed 跨 main 任务与按键回调的 esp_timer 任务读写,标 volatile 以防被缓存。
     volatile bool armed;
     int64_t deadline_us;
+    bool released;       // 已经收到 release,正在吞它后面迟到的单击/双击
+    int64_t release_us;  // 收到 release 的时间
 } key_guard_t;
 
 // 按键唤醒启动时武装。timeout_us 只作为按键卡住时的兜底。
 static inline void key_guard_arm(key_guard_t *g, int64_t now_us, int64_t timeout_us) {
     g->armed = true;
     g->deadline_us = now_us + timeout_us;
+    g->released = false;
+    g->release_us = 0;
 }
 
 // 每收到一个按键事件调一次。返回 true 表示该事件应被吞掉(不派发给应用),
-// false 表示正常派发。release 事件或到期会就地撤防,但那次事件仍被吞掉。
+// false 表示正常派发。release 之后 KEY_GUARD_TAIL_US 内的事件仍被吞掉,之后的第一个
+// 事件撤防并正常派发;到期会就地撤防,但那次事件仍被吞掉。
 static inline bool key_guard_consume(key_guard_t *g, bool is_release, int64_t now_us) {
     if (!g->armed) return false;
-    if (is_release || now_us >= g->deadline_us) {
+    if (g->released && now_us - g->release_us >= KEY_GUARD_TAIL_US) {
         g->armed = false;
+        return false;
+    }
+    if (now_us >= g->deadline_us) {
+        g->armed = false;
+    } else if (is_release && !g->released) {
+        g->released = true;
+        g->release_us = now_us;
     }
     return true;
 }

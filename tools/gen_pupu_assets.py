@@ -4,9 +4,11 @@
 Inputs (assets/images/pupu/):
   pupu.gpl        16-colour palette; slot 0 is transparent
   <anim>.png      one horizontal strip per animation, 48 px per frame
+  icon_<name>.png one 24 x 24 icon (mini-game star and cloud)
 
 Outputs:
-  main/pupu_assets.h, main/pupu_assets.c   packed 4-bit frames, palette, animation table
+  main/pupu_assets.h, main/pupu_assets.c   packed 4-bit frames, palette, animation table,
+                                            and RGB565A8 icon pixels
   build/pupu-preview.png                    3x contact sheet with every tint step (not committed)
 
 Every opaque pixel must exactly match one of palette slots 1-15 and every other pixel
@@ -51,6 +53,11 @@ ANIMS = [
     ("adult_shake", [180, 180]),
 ]
 
+# Mini-game icons (M5). Drawn at their final size and shown 1:1 as RGB565A8 lv_images:
+# the 565 colour plane first, then one alpha byte per pixel (LVGL 9 layout).
+ICONS = ["icon_star", "icon_cloud"]
+ICON_W = 24
+
 # Must match the wool grey in main/pupu_sprite_math.c; used only for the preview.
 WOOL_GREY = [(0xC4, 0xC2, 0xBE), (0xA3, 0xA1, 0x9D), (0x7F, 0x7D, 0x79)]
 TINT_STEPS = 8
@@ -80,33 +87,33 @@ def read_palette(path):
     return colours
 
 
-def read_strip(path, palette, frame_count):
+def read_strip(path, palette, frame_count, size=W):
     lookup = {rgb: slot for slot, rgb in enumerate(palette) if slot != 0}
     image = Image.open(str(path)).convert("RGBA")
     width, height = image.size
-    if height != W or width % W != 0:
+    if height != size or width % size != 0:
         fail("{}: must be {} px high and a multiple of {} px wide, got {}x{}".format(
-            path.name, W, W, width, height))
-    if width // W != frame_count:
+            path.name, size, size, width, height))
+    if width // size != frame_count:
         fail("{}: has {} frames but ANIMS in tools/gen_pupu_assets.py lists {}; "
-             "update the frame durations there".format(path.name, width // W, frame_count))
+             "update the frame durations there".format(path.name, width // size, frame_count))
     pixels = image.load()
     frames = []
     for i in range(frame_count):
         slots = []
-        for y in range(W):
-            for x in range(W):
-                r, g, b, a = pixels[i * W + x, y]
+        for y in range(size):
+            for x in range(size):
+                r, g, b, a = pixels[i * size + x, y]
                 if a == 0:
                     slots.append(0)
                 elif a != 255:
                     fail("{}:{},{}: half-transparent pixel (alpha {}); use fully "
-                         "transparent or fully opaque".format(path.name, i * W + x, y, a))
+                         "transparent or fully opaque".format(path.name, i * size + x, y, a))
                 elif (r, g, b) in lookup:
                     slots.append(lookup[(r, g, b)])
                 else:
                     fail("{}:{},{}: colour #{:02X}{:02X}{:02X} is not in pupu.gpl".format(
-                        path.name, i * W + x, y, r, g, b))
+                        path.name, i * size + x, y, r, g, b))
         frames.append(slots)
     return frames
 
@@ -116,6 +123,18 @@ def pack(slots):
     for i in range(0, len(slots), 2):
         out.append((slots[i] << 4) | slots[i + 1])  # even x in the high nibble (LVGL I4)
     return bytes(out)
+
+
+def rgb565a8(slots, palette):
+    """Colour plane (little-endian RGB565) followed by the alpha plane."""
+    colour = bytearray()
+    alpha = bytearray()
+    for slot in slots:
+        r, g, b = palette[slot]
+        value = ((r >> 3) << 11) | ((g >> 2) << 5) | (b >> 3)
+        colour += bytes((value & 0xFF, value >> 8))
+        alpha.append(0 if slot == 0 else 0xFF)
+    return bytes(colour + alpha)
 
 
 def tint(cream, grey, step):
@@ -174,10 +193,18 @@ def main():
             fail("missing {}".format(path.relative_to(ROOT)))
         anims.append((name, read_strip(path, palette, len(durations))))
         sources.append(path)
+    icons = []
+    for name in ICONS:
+        path = ART_DIR / "{}.png".format(name)
+        if not path.exists():
+            fail("missing {}".format(path.relative_to(ROOT)))
+        icons.append((name, read_strip(path, palette, 1, ICON_W)[0]))
+        sources.append(path)
     listed = {"{}.png".format(name) for name, _ in ANIMS}
+    listed.update("{}.png".format(name) for name in ICONS)
     for extra in sorted(ART_DIR.glob("*.png")):
         if extra.name not in listed:
-            fail("{} is not listed in ANIMS; add it or remove the file".format(extra.name))
+            fail("{} is not listed in ANIMS or ICONS; add it or remove the file".format(extra.name))
 
     hashes = ["// sha256 {}  {}".format(sha256(p), p.relative_to(ROOT).as_posix()) for p in sources]
     total = sum(len(frames) for _, frames in anims)
@@ -217,6 +244,12 @@ def main():
     h.append("extern const uint16_t pupu_frame_ms[PUPU_FRAME_COUNT];")
     h.append("extern const uint8_t pupu_frames[PUPU_FRAME_COUNT][PUPU_SPRITE_FRAME_BYTES];")
     h.append("")
+    h.append("// Mini-game icons: {0} x {0} RGB565A8 (colour plane, then alpha plane).".format(ICON_W))
+    h.append("#define PUPU_ICON_W {}".format(ICON_W))
+    h.append("#define PUPU_ICON_BYTES (PUPU_ICON_W * PUPU_ICON_W * 3)")
+    for name, _ in icons:
+        h.append("extern const uint8_t pupu_{}[PUPU_ICON_BYTES];".format(name))
+    h.append("")
 
     c = []
     c.append("// main/pupu_assets.c —— generated by tools/gen_pupu_assets.py. Do not edit by hand.")
@@ -248,13 +281,20 @@ def main():
             c.append("    },")
     c.append("};")
     c.append("")
+    for name, slots in icons:
+        data = rgb565a8(slots, palette)
+        c.append("const uint8_t pupu_{}[PUPU_ICON_BYTES] = {{".format(name))
+        for row in range(0, len(data), 24):
+            c.append("    " + " ".join("0x{:02x},".format(v) for v in data[row:row + 24]))
+        c.append("};")
+        c.append("")
 
     OUT_H.write_text("\n".join(h), encoding="utf-8")
     OUT_C.write_text("\n".join(c), encoding="utf-8")
     write_preview(palette, anims)
-    print("wrote {} and {}: {} animations, {} frames ({} bytes of pixels)".format(
+    print("wrote {} and {}: {} animations, {} frames ({} bytes of pixels), {} icons".format(
         OUT_H.relative_to(ROOT), OUT_C.relative_to(ROOT), len(anims), total,
-        total * W * W // 2))
+        total * W * W // 2, len(icons)))
     print("preview: {}".format(PREVIEW.relative_to(ROOT)))
 
 

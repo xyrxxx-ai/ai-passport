@@ -1,7 +1,7 @@
 // main/pupu_ui_home.c —— 首页:顶栏电量、需求气泡、宠物画布、底部 4 个功能。
 //
 // 首页不显示数字,只用表情、毛色和最多一个气泡表达状态(产品说明第 2、8 节)。
-// ↑/↓ 切换底部功能,到头就停;OK 单击进入喂食、玩耍、状态(同步在 M6)。
+// ↑/↓ 切换底部功能,到头就停;OK 单击进入喂食、玩耍、状态(同步在 M6);长按 OK 熄屏。
 // 从别的页面回来时,底部还停在上次选的那一项。
 #include "pupu_ui.h"
 
@@ -87,7 +87,7 @@ pupu_ui_req_t pupu_ui_home_action(pupu_action_t act, uint32_t now_ms) {
             return PUPU_UI_NONE;
         }
     }
-    if (act == PUPU_ACT_BACK) ESP_LOGI(TAG, "长按 OK:熄屏在 M4 才做");
+    if (act == PUPU_ACT_BACK) return PUPU_UI_SCREEN_OFF;
     return PUPU_UI_NONE;
 }
 

@@ -37,8 +37,8 @@ enum {
     PUPU_SLOT_SHELL = 11,
     PUPU_SLOT_SHELL_DARK = 12,
     PUPU_SLOT_INK = 13,
-    PUPU_SLOT_SPARE_A = 14,
-    PUPU_SLOT_SPARE_B = 15,
+    PUPU_SLOT_STAR = 14,   // 小游戏的星星图标
+    PUPU_SLOT_CLOUD = 15,  // 小游戏的乌云图标
 };
 
 #define PUPU_TINT_STEPS 8  // 0 = 最开心的奶油色,7 = 最灰

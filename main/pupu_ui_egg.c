@@ -83,6 +83,10 @@ pupu_ui_req_t pupu_ui_egg_action(pupu_action_t act, pupu_model_t *m, uint32_t no
     return PUPU_UI_NONE;
 }
 
+bool pupu_ui_egg_busy(void) {
+    return s_hatching;
+}
+
 pupu_ui_req_t pupu_ui_egg_update(const pupu_input_t *in, uint32_t now_ms) {
     if (s_notice && (int32_t)(now_ms - s_notice_until_ms) >= 0) {
         s_notice = NULL;

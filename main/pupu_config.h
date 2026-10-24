@@ -58,6 +58,19 @@
 #define PUPU_HOLD_MS               3000  // 蛋:按住 OK 这么久孵化
 #define PUPU_HOLD_GRACE_MS         150   // 蛋:松开后这么久内又按下,算接触抖动,不取消
 #define PUPU_KEY_SWITCH_MS         120   // 一个键松开后这么久内另一个键按下,当作幻影键忽略
+#define PUPU_GAME_EXIT_MS          500   // 小游戏:按住 OK 这么久退出(和按键驱动的长按一样长)
+
+// ---- 变暗、熄屏、深睡(真实毫秒,不受时间倍率影响;测出耗电后再调) ----
+#define PUPU_DIM_AFTER_MS          20000u              // 没动静 20 秒:变暗
+#define PUPU_OFF_AFTER_MS          45000u              // 没动静 45 秒:熄屏
+#define PUPU_SLEEP_AFTER_OFF_MS    (5u * 60u * 1000u)  // 熄屏 5 分钟:深睡
+#define PUPU_SLEEP_RETRY_MS        10000u              // 深睡被拒绝(有键按着)后多久再试
+#define PUPU_DIM_BACKLIGHT         30                  // 变暗时的背光百分比
+#define PUPU_WAKE_SWALLOW_MS       250u                // 亮屏的键松开后,再吞这么久的事件
+#define PUPU_WAKE_GUARD_MAX_MS     10000u              // 亮屏的键一直不松开时,最多吞这么久
+
+// ---- 离开提示 ----
+#define PUPU_WELCOME_AWAY_S        3600u  // 补算的离开时长(宠物时间)超过 1 小时,显示"你回来啦"
 
 // ---- 存档时机(真实毫秒,不受时间倍率影响) ----
 #define PUPU_SAVE_DELAY_MS         1000u              // 状态变了以后等这么久(并且等音效放完)再存

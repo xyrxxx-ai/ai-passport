@@ -7,6 +7,10 @@
 //   - 别的键还按着,或者刚松开不到 PUPU_KEY_SWITCH_MS,另一个键的 PRESS 当作幻影键忽略,
 //     它后面跟着的 RELEASE、CLICK、DOUBLE、LONG 也一起忽略;
 //   - 蛋页按住 OK 计时 3 秒孵化,不靠 LONG(先点一下再按住时驱动不会发 LONG)。
+//   - 小游戏(GAME 模式):OK 按下就暂停、松开交给游戏判断要不要继续、按住 500 ms 退出;单击和
+//     双击不用。"按住"自己计时,不靠驱动的 LONG:先点一下、180 ms 内再按住时驱动不发 LONG,
+//     那样松手时游戏会继续,而玩家是想退出。↑/↓ 按着或者刚松开不到 PUPU_KEY_SWITCH_MS 时,OK 当作幻影键;但 ↑ 和 ↓ 之间
+//     快速来回换道不受这 120 ms 限制(玩的时候会很快地交替按)。
 //
 // 时间都是调用方传进来的真实毫秒(可以回绕),本模块不碰硬件。线程:只在 LVGL 任务里调用。
 #pragma once
@@ -33,6 +37,7 @@ typedef enum {
 typedef enum {
     PUPU_INPUT_EGG = 0,  // 蛋页:只认"按住 OK"
     PUPU_INPUT_MENU,     // 首页和普通页面
+    PUPU_INPUT_GAME,     // 小游戏进行中(倒数、游戏中、暂停)
 } pupu_input_mode_t;
 
 typedef enum {
@@ -44,6 +49,8 @@ typedef enum {
     PUPU_ACT_HOLD_START,   // 蛋:开始捂热
     PUPU_ACT_HOLD_CANCEL,  // 蛋:中途松手,取消
     PUPU_ACT_HATCH,        // 蛋:按满 3 秒
+    PUPU_ACT_OK_DOWN,      // 小游戏:OK 按下(暂停)
+    PUPU_ACT_OK_UP,        // 小游戏:OK 松开(暂停中再按一下时继续)
 } pupu_action_t;
 
 typedef struct {
@@ -56,6 +63,8 @@ typedef struct {
     bool release_pending;             // 蛋:松开了,等抖动宽限期过去
     uint32_t hold_start_ms;
     uint32_t hold_release_ms;
+    bool game_ok_held;                // 小游戏:OK 按着,正在数 500 ms
+    uint32_t game_ok_ms;
 } pupu_input_t;
 
 void pupu_input_init(pupu_input_t *in);
@@ -64,11 +73,12 @@ void pupu_input_init(pupu_input_t *in);
 pupu_action_t pupu_input_key(pupu_input_t *in, pupu_input_mode_t mode, pupu_key_t key,
                              pupu_key_ev_t ev, uint32_t now_ms);
 
-// 主循环每次调用一次:蛋页按满 3 秒返回 HATCH,松手超过宽限期返回 HOLD_CANCEL。
+// 主循环每次调用一次:蛋页按满 3 秒返回 HATCH,松手超过宽限期返回 HOLD_CANCEL;
+// 小游戏里 OK 按满 500 ms 返回 BACK(退出)。
 pupu_action_t pupu_input_tick(pupu_input_t *in, uint32_t now_ms);
 
 // 已经捂热了多少毫秒(0 到 PUPU_HOLD_MS),没在捂热时返回 0。用来画进度条。
 uint32_t pupu_input_hold_ms(const pupu_input_t *in, uint32_t now_ms);
 
-// 离开蛋页时调用,丢掉正在进行的捂热。
+// 换页时调用,丢掉正在进行的捂热和小游戏里按着的 OK。
 void pupu_input_cancel_hold(pupu_input_t *in);

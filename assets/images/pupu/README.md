@@ -24,8 +24,11 @@ directly; `tools/gen_pupu_assets.py` converts them into `main/pupu_assets.c` and
 | `child_happy.png`, `adult_happy.png` | 96 × 48 PNG RGBA, 2 frames each | Happy hop and a little snort cloud |
 | `child_dodge.png`, `adult_dodge.png` | 96 × 48 PNG RGBA, 2 frames each | Leaning away when patted too often |
 | `child_shake.png`, `adult_shake.png` | 96 × 48 PNG RGBA, 2 frames each | Shaking the head when too full to eat |
+| `icon_star.png` | 24 × 24 PNG RGBA, 1 frame | Mini-game star |
+| `icon_cloud.png` | 24 × 24 PNG RGBA, 1 frame | Mini-game storm cloud |
 
 Each strip is 48 px high with one 48 × 48 frame after another from left to right.
+The two icons are single 24 × 24 images; they use the same palette.
 The current strips are placeholders drawn by `tools/make_placeholder_art.py`.
 Source: generated for this repository; no third-party material.
 
@@ -39,8 +42,8 @@ Source: generated for this repository; no third-party material.
 | 3 | face highlight | 11 | eggshell |
 | 4 | eye white | 12 | eggshell shade |
 | 5 | blush | 13 | passport ink |
-| 6 | horn | 14 | spare |
-| 7 | horn shadow | 15 | spare |
+| 6 | horn | 14 | star gold (mini-game icon) |
+| 7 | horn shadow | 15 | storm cloud (mini-game icon) |
 
 The firmware blends slots 8–10 toward grey in 8 steps as the lower of fullness and
 happiness drops, so paint all wool with these three slots and nothing else with them.
@@ -53,7 +56,8 @@ Slot numbers are also defined in `main/pupu_sprite_math.h`.
 2. Export each animation as a horizontal sprite-sheet PNG with the same file name.
    Use fully transparent pixels for the background; half-transparent pixels are rejected.
 3. If an animation gets a different number of frames, update its frame durations in
-   `ANIMS` at the top of `tools/gen_pupu_assets.py`.
+   `ANIMS` at the top of `tools/gen_pupu_assets.py`. The two mini-game icons are single
+   24 × 24 images listed in `ICONS` in the same script; keep that size.
 4. Regenerate and check:
 
    ```bash
@@ -66,4 +70,6 @@ Slot numbers are also defined in `main/pupu_sprite_math.h`.
    the C files were not regenerated.
 
 On the device each frame is enlarged 3× into a 144 × 144 indexed (I4) canvas and drawn
-at 1:1. Pixel data stays in Flash: 1,152 bytes per frame.
+at 1:1. Pixel data stays in Flash: 1,152 bytes per frame. The mini-game draws Pupu at
+1× from the same frames on a 48 × 48 canvas. The icons are converted to RGB565A8
+(1,728 bytes each) and drawn 1:1 as LVGL images.

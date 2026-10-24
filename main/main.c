@@ -6,11 +6,11 @@
 #include "bsp_i2c.h"
 #include "bsp_display.h"
 #include "bsp_button.h"
-#include "bsp_battery.h"
 #include "bsp_pins.h"      // 错误日志里要打印 BSP_LCD_* 引脚号
 #include "demo_radio.h"
 #include "key_guard.h"
 #include "pupu_app.h"
+#include "pupu_ctl.h"
 #include "pupu_sfx.h"
 #include "esp_log.h"
 #include "esp_sleep.h"
@@ -24,7 +24,8 @@ static volatile bool s_input_ready;
 // button component starts a few hundred milliseconds later, registers a press that
 // is already down, and grades it a long press once it has been down for its
 // threshold (500 ms here), so an unintended action fires almost immediately. Drop
-// key actions until that press comes up; the deadline is only a safety net so a
+// key actions until that press comes up, plus 250 ms for the click the component
+// reports about 185 ms after the release; the deadline is only a safety net so a
 // stuck key cannot leave the pad dead. The state machine lives in key_guard.h so it
 // can be unit-tested without the rest of the app.
 #define KEY_GUARD_MAX_US (10LL * 1000 * 1000)
@@ -76,9 +77,10 @@ void app_main(void) {
     if (demo_radio_nvs_prepare() != ESP_OK) {
         ESP_LOGW(TAG, "NVS 不可用,这次开机不能存档");
     }
-    // 电量计失败不影响玩:顶栏读不到电量就不显示数字。
-    if (bsp_battery_init() != ESP_OK) {
-        ESP_LOGW(TAG, "电量计不可用,顶栏不显示电量");
+    // 慢活(电量计初始化、深度休眠)交给工作任务。电量计要等至少 100 ms,
+    // 所以先画出宠物,由 pupu_app_start() 再让工作任务去初始化;失败不影响玩。
+    if (pupu_ctl_start() != ESP_OK) {
+        ESP_LOGW(TAG, "工作任务启动失败:这次开机不显示电量,也不会自动深睡");
     }
     // 音效失败不影响玩,只是没有声音。
     if (pupu_sfx_start() != ESP_OK) {

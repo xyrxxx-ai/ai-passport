@@ -21,6 +21,11 @@ typedef enum {
     PUPU_SFX_NO,       // 摇头、躲开、没有星星糖
     PUPU_SFX_HATCH,    // 孵化
     PUPU_SFX_GROW,     // 长大
+    PUPU_SFX_BEEP,     // 小游戏倒数 3-2-1
+    PUPU_SFX_STAR,     // 小游戏:接到星星,"叮"
+    PUPU_SFX_CLOUD,    // 小游戏:碰到乌云,"咚"
+    PUPU_SFX_WIN,      // 小游戏:赢了
+    PUPU_SFX_LOSE,     // 小游戏:没到 8 颗
     PUPU_SFX_COUNT,
 } pupu_sfx_t;
 

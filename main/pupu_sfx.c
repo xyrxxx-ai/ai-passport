@@ -21,7 +21,7 @@ static const char *TAG = "pupu_sfx";
 #define TAIL_US 150000
 #define STOP_MARK 0xFF
 
-enum { SQUARE = 0, TRIANGLE, NOISE };
+enum { SQUARE = 0, TRIANGLE, NOISE, SILENT };
 
 static QueueHandle_t s_queue;
 static SemaphoreHandle_t s_stopped;
@@ -32,6 +32,7 @@ static int64_t s_end_us;    // 最后一次写完 I2S 的时间(s_lock 保护)
 static uint32_t s_noise = 0xC001D00Du;
 
 static int16_t wave_sample(uint32_t phase, uint8_t wave, int16_t amplitude) {
+    if (wave == SILENT) return 0;
     const uint16_t point = (uint16_t)(phase >> 16);
     if (wave == SQUARE) return point < 32768u ? amplitude : (int16_t)-amplitude;
     if (wave == TRIANGLE) {
@@ -67,10 +68,10 @@ static bool tone(uint16_t hz, uint16_t ms, uint8_t wave) {
     return true;
 }
 
-// 两个音之间的停顿。DMA 放完以后会自己补静音(auto_clear),所以这里只要等。
+// 两个音之间的停顿:写进静音采样,排在前面的音后面。只睡觉的话,DMA 里还排着 70–90 ms
+// 前面的音,停顿就听不出来了。
 static bool rest(uint16_t ms) {
-    vTaskDelay(pdMS_TO_TICKS(ms));
-    return !s_stop;
+    return tone(0, ms, SILENT);
 }
 
 static void play(pupu_sfx_t sfx) {
@@ -93,6 +94,22 @@ static void play(pupu_sfx_t sfx) {
     case PUPU_SFX_GROW:
         (void)(tone(392, 90, SQUARE) && tone(523, 90, TRIANGLE) && tone(659, 90, SQUARE) &&
                tone(784, 90, TRIANGLE) && tone(1047, 240, TRIANGLE));
+        break;
+    case PUPU_SFX_BEEP:
+        (void)tone(880, 60, SQUARE);
+        break;
+    case PUPU_SFX_STAR:  // 短短的"叮"
+        (void)(tone(1319, 40, TRIANGLE) && tone(1760, 80, TRIANGLE));
+        break;
+    case PUPU_SFX_CLOUD:  // 闷闷的"咚"
+        (void)(tone(0, 40, NOISE) && tone(165, 110, SQUARE));
+        break;
+    case PUPU_SFX_WIN:
+        (void)(tone(523, 90, TRIANGLE) && tone(659, 90, TRIANGLE) && tone(784, 90, TRIANGLE) &&
+               rest(40) && tone(1047, 120, SQUARE) && tone(1319, 220, TRIANGLE));
+        break;
+    case PUPU_SFX_LOSE:
+        (void)(tone(392, 120, TRIANGLE) && tone(330, 120, TRIANGLE) && tone(262, 220, TRIANGLE));
         break;
     default:
         break;

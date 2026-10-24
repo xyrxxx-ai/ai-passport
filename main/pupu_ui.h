@@ -32,8 +32,10 @@ typedef enum {
     PUPU_UI_CHANGED,  // 宠物状态变了:约 1 秒后存档
     PUPU_UI_GO_HOME,
     PUPU_UI_GO_FEED,
-    PUPU_UI_GO_PLAY,
+    PUPU_UI_GO_PLAY,  // 也用于从小游戏回到玩耍页
     PUPU_UI_GO_STATUS,
+    PUPU_UI_GO_CATCH,    // 玩耍页选"接星星"
+    PUPU_UI_SCREEN_OFF,  // 首页长按 OK:熄屏
 } pupu_ui_req_t;
 
 // 宠物现在在做什么;pupu_ui_pet_anim() 按阶段换成对应的动画。
@@ -91,8 +93,10 @@ lv_obj_t *pupu_ui_egg_create(const char *notice, uint32_t now_ms);
 pupu_ui_req_t pupu_ui_egg_action(pupu_action_t act, pupu_model_t *m, uint32_t now_ms);
 // 孵化动画放完后返回 PUPU_UI_GO_HOME。
 pupu_ui_req_t pupu_ui_egg_update(const pupu_input_t *in, uint32_t now_ms);
+// 正在放孵化动画(这时不变暗、不熄屏)。
+bool pupu_ui_egg_busy(void);
 
-// ---- 首页:顶栏电量、需求气泡、宠物、底部 4 个功能 ----
+// ---- 首页:顶栏电量、需求气泡、宠物、底部 4 个功能;长按 OK 熄屏 ----
 // battery 是电量百分比,负数表示读不到(不显示数字)。
 lv_obj_t *pupu_ui_home_create(const pupu_model_t *m, int battery, const char *notice,
                               uint32_t now_ms);
@@ -106,6 +110,23 @@ lv_obj_t *pupu_ui_care_create(pupu_care_t kind, const pupu_model_t *m, uint32_t 
 pupu_ui_req_t pupu_ui_care_action(pupu_action_t act, pupu_model_t *m, uint32_t acct_now,
                                   uint32_t now_ms);
 void pupu_ui_care_update(const pupu_model_t *m, uint32_t now_ms);
+// 噗噗正在做反应(吃、开心、躲开、摇头),这时不变暗、不熄屏。
+bool pupu_ui_care_busy(void);
+
+// ---- 小游戏「接星星」(规则在 catch_model.h)----
+lv_obj_t *pupu_ui_catch_create(const pupu_model_t *m, uint32_t now_ms);
+// key_ms 是这个动作对应的按键时间(用来记换道延迟)。长按退出返回 PUPU_UI_GO_PLAY;
+// 结果出来以后按 OK 也返回 PUPU_UI_GO_PLAY。
+pupu_ui_req_t pupu_ui_catch_action(pupu_action_t act, pupu_model_t *m, uint32_t key_ms,
+                                   uint32_t now_ms);
+// 推进游戏、画画面;结算时返回 PUPU_UI_CHANGED。
+pupu_ui_req_t pupu_ui_catch_update(pupu_model_t *m, uint32_t now_ms);
+// 倒数或者游戏中:不变暗、不熄屏。
+bool pupu_ui_catch_busy(void);
+// 这一局还没结束(包括暂停):按键用 GAME 模式,不定时存档。
+bool pupu_ui_catch_in_round(void);
+// 离开这一页时调用(比如暂停时熄屏):没结束的一局作废。
+void pupu_ui_catch_leave(void);
 
 // ---- 状态页:饱腹、开心、星星糖,幼年多一行成长进度 ----
 lv_obj_t *pupu_ui_status_create(const pupu_model_t *m);

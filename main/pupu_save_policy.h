@@ -13,6 +13,7 @@
 // - 状态变了(照顾、孵化、长大……)以后约 1 秒存一次;再有变化就重新等 1 秒;
 // - 开机期间每 5 分钟存一次;
 // - 电量刚降到 5% 以下时存一次;
+// - 屏幕变暗、熄屏时马上存一次(深睡前的那次由 pupu_store_flush 同步写完);
 // - "忙碌"时(音效正在放)先不存,忙完再存,避免写 Flash 时音频卡顿爆音。
 // 只是换了选中项不算变化,调用方不要为它调用 mark。
 #pragma once
@@ -54,6 +55,9 @@ void pupu_autosave_init(pupu_autosave_t *a, uint32_t now_ms);
 
 // 宠物状态变了:约 1 秒后存。
 void pupu_autosave_mark(pupu_autosave_t *a, uint32_t now_ms);
+
+// 马上存(变暗、熄屏时):不等 1 秒,但仍然等音效放完。
+void pupu_autosave_request(pupu_autosave_t *a, uint32_t now_ms);
 
 // 读到一次电量(百分比,负数表示读不到,忽略)。刚跌到 5% 以下时 mark 一次。
 void pupu_autosave_battery(pupu_autosave_t *a, int soc, uint32_t now_ms);

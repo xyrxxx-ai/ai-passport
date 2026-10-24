@@ -7,6 +7,7 @@
 #pragma once
 
 #include <stdbool.h>
+#include <stdint.h>
 
 #include "pupu_save_codec.h"
 
@@ -22,3 +23,10 @@ pupu_store_boot_t pupu_store_start(pupu_save_t *out);
 
 // 存一份快照。不阻塞;还没写的旧快照会被这份盖掉。不能存档或 locked 时什么都不做。
 void pupu_store_save(const pupu_save_t *s);
+
+// 有快照交给了存档任务、还没写完。
+bool pupu_store_busy(void);
+
+// 深睡前用:存一份快照并等它写完(会阻塞,不要在 LVGL 任务里调用)。
+// 写成功返回 true;不能存档、locked、写失败或超时返回 false。
+bool pupu_store_flush(const pupu_save_t *s, uint32_t timeout_ms);

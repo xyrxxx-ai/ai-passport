@@ -201,8 +201,97 @@ static void test_millisecond_wraparound(void) {
     assert(pupu_input_hold_ms(&in, start + 5000u + 9999u) == PUPU_HOLD_MS);
 }
 
+#define GAME PUPU_INPUT_GAME
+
+// 小游戏:OK 按下就暂停、松开交给游戏、按住 500 ms 退出;单击和双击不用;↑/↓ 照常按下就换道。
+static void test_game_mapping(void) {
+    pupu_input_t in;
+    pupu_input_init(&in);
+    assert(key(&in, GAME, PUPU_KEY_OK, PUPU_KEV_PRESS, 0) == PUPU_ACT_OK_DOWN);
+    assert(key(&in, GAME, PUPU_KEY_OK, PUPU_KEV_RELEASE, 80) == PUPU_ACT_OK_UP);
+    assert(key(&in, GAME, PUPU_KEY_OK, PUPU_KEV_CLICK, 265) == PUPU_ACT_NONE);
+    assert(key(&in, GAME, PUPU_KEY_OK, PUPU_KEV_PRESS, 1000) == PUPU_ACT_OK_DOWN);
+    assert(key(&in, GAME, PUPU_KEY_OK, PUPU_KEV_RELEASE, 1060) == PUPU_ACT_OK_UP);
+    assert(key(&in, GAME, PUPU_KEY_OK, PUPU_KEV_PRESS, 1120) == PUPU_ACT_OK_DOWN);
+    assert(key(&in, GAME, PUPU_KEY_OK, PUPU_KEV_RELEASE, 1180) == PUPU_ACT_OK_UP);
+    assert(key(&in, GAME, PUPU_KEY_OK, PUPU_KEV_DOUBLE, 1365) == PUPU_ACT_NONE);
+    // 按住:自己数满 500 ms 退出;驱动的长按不再算一次;松开照常交给游戏(一局已经作废)
+    assert(key(&in, GAME, PUPU_KEY_OK, PUPU_KEV_PRESS, 2000) == PUPU_ACT_OK_DOWN);
+    assert(pupu_input_tick(&in, 2000 + PUPU_GAME_EXIT_MS - 1) == PUPU_ACT_NONE);
+    assert(pupu_input_tick(&in, 2000 + PUPU_GAME_EXIT_MS) == PUPU_ACT_BACK);
+    assert(pupu_input_tick(&in, 2000 + PUPU_GAME_EXIT_MS + 20) == PUPU_ACT_NONE);  // 只一次
+    assert(key(&in, GAME, PUPU_KEY_OK, PUPU_KEV_LONG, 2500) == PUPU_ACT_NONE);
+    // 退出后回到普通页面:迟到的驱动长按也不能再变成一次"返回"
+    assert(key(&in, MENU, PUPU_KEY_OK, PUPU_KEV_LONG, 2510) == PUPU_ACT_NONE);
+    assert(key(&in, GAME, PUPU_KEY_OK, PUPU_KEV_RELEASE, 2700) == PUPU_ACT_OK_UP);
+    // 按一下就松开:不会退出
+    assert(key(&in, GAME, PUPU_KEY_OK, PUPU_KEV_PRESS, 2800) == PUPU_ACT_OK_DOWN);
+    assert(key(&in, GAME, PUPU_KEY_OK, PUPU_KEV_RELEASE, 2900) == PUPU_ACT_OK_UP);
+    assert(pupu_input_tick(&in, 2800 + PUPU_GAME_EXIT_MS) == PUPU_ACT_NONE);
+    // ↑/↓ 按下就换道;它们的单击、长按没有动作
+    assert(key(&in, GAME, PUPU_KEY_UP, PUPU_KEV_PRESS, 3000) == PUPU_ACT_PREV);
+    assert(key(&in, GAME, PUPU_KEY_UP, PUPU_KEV_LONG, 3500) == PUPU_ACT_NONE);
+    assert(key(&in, GAME, PUPU_KEY_UP, PUPU_KEV_RELEASE, 3600) == PUPU_ACT_NONE);
+    assert(key(&in, GAME, PUPU_KEY_DOWN, PUPU_KEV_PRESS, 4000) == PUPU_ACT_NEXT);
+    assert(key(&in, GAME, PUPU_KEY_DOWN, PUPU_KEV_RELEASE, 4060) == PUPU_ACT_NONE);
+    assert(key(&in, GAME, PUPU_KEY_DOWN, PUPU_KEV_CLICK, 4245) == PUPU_ACT_NONE);
+}
+
+// 先点一下 OK(暂停),180 ms 内再按住:驱动这时不发长按,但按住 500 ms 照样退出,
+// 不会在松手时继续游戏。
+static void test_game_tap_then_hold_exits(void) {
+    pupu_input_t in;
+    pupu_input_init(&in);
+    assert(key(&in, GAME, PUPU_KEY_OK, PUPU_KEV_PRESS, 0) == PUPU_ACT_OK_DOWN);
+    assert(key(&in, GAME, PUPU_KEY_OK, PUPU_KEV_RELEASE, 80) == PUPU_ACT_OK_UP);
+    assert(pupu_input_tick(&in, 200) == PUPU_ACT_NONE);
+    assert(key(&in, GAME, PUPU_KEY_OK, PUPU_KEV_PRESS, 180) == PUPU_ACT_OK_DOWN);
+    assert(pupu_input_tick(&in, 180 + PUPU_GAME_EXIT_MS - 1) == PUPU_ACT_NONE);
+    assert(pupu_input_tick(&in, 180 + PUPU_GAME_EXIT_MS) == PUPU_ACT_BACK);
+    // 换页会丢掉按着的 OK
+    pupu_input_init(&in);
+    assert(key(&in, GAME, PUPU_KEY_OK, PUPU_KEV_PRESS, 1000) == PUPU_ACT_OK_DOWN);
+    pupu_input_cancel_hold(&in);
+    assert(pupu_input_tick(&in, 2000) == PUPU_ACT_NONE);
+}
+
+// 小游戏的防幻影键:↑/↓ 按着或刚松开不到 120 ms 时,OK 的按下、松开、长按都不算;
+// ↑ 和 ↓ 之间快速交替不受 120 ms 限制。
+static void test_game_phantom_ok(void) {
+    pupu_input_t in;
+    pupu_input_init(&in);
+    assert(key(&in, GAME, PUPU_KEY_UP, PUPU_KEV_PRESS, 0) == PUPU_ACT_PREV);
+    assert(key(&in, GAME, PUPU_KEY_OK, PUPU_KEV_PRESS, 40) == PUPU_ACT_NONE);    // ↑ 还按着
+    assert(pupu_input_tick(&in, 40 + PUPU_GAME_EXIT_MS) == PUPU_ACT_NONE);       // 幻影键不计时
+    assert(key(&in, GAME, PUPU_KEY_OK, PUPU_KEV_RELEASE, 50) == PUPU_ACT_NONE);
+    assert(key(&in, GAME, PUPU_KEY_UP, PUPU_KEV_RELEASE, 90) == PUPU_ACT_NONE);
+    assert(key(&in, GAME, PUPU_KEY_OK, PUPU_KEV_PRESS, 90 + PUPU_KEY_SWITCH_MS - 1) == PUPU_ACT_NONE);
+    assert(key(&in, GAME, PUPU_KEY_OK, PUPU_KEV_LONG, 700) == PUPU_ACT_NONE);    // 幻影键的长按
+    assert(key(&in, GAME, PUPU_KEY_OK, PUPU_KEV_RELEASE, 800) == PUPU_ACT_NONE);
+    // 松开满 120 ms 以后的 OK 是真的
+    pupu_input_init(&in);
+    assert(key(&in, GAME, PUPU_KEY_DOWN, PUPU_KEV_PRESS, 0) == PUPU_ACT_NEXT);
+    assert(key(&in, GAME, PUPU_KEY_DOWN, PUPU_KEV_RELEASE, 60) == PUPU_ACT_NONE);
+    assert(key(&in, GAME, PUPU_KEY_OK, PUPU_KEV_PRESS, 60 + PUPU_KEY_SWITCH_MS) == PUPU_ACT_OK_DOWN);
+    // ↑ 松开后马上按 ↓:换道照常
+    pupu_input_init(&in);
+    assert(key(&in, GAME, PUPU_KEY_UP, PUPU_KEV_PRESS, 0) == PUPU_ACT_PREV);
+    assert(key(&in, GAME, PUPU_KEY_UP, PUPU_KEV_RELEASE, 50) == PUPU_ACT_NONE);
+    assert(key(&in, GAME, PUPU_KEY_DOWN, PUPU_KEV_PRESS, 70) == PUPU_ACT_NEXT);
+    // 但 ↓ 还按着时 ↑ 的按下仍然是幻影键
+    assert(key(&in, GAME, PUPU_KEY_UP, PUPU_KEV_PRESS, 90) == PUPU_ACT_NONE);
+    // 普通页面的 120 ms 规则不变
+    pupu_input_init(&in);
+    assert(key(&in, MENU, PUPU_KEY_UP, PUPU_KEV_PRESS, 0) == PUPU_ACT_PREV);
+    assert(key(&in, MENU, PUPU_KEY_UP, PUPU_KEV_RELEASE, 50) == PUPU_ACT_NONE);
+    assert(key(&in, MENU, PUPU_KEY_DOWN, PUPU_KEV_PRESS, 70) == PUPU_ACT_NONE);
+}
+
 int main(void) {
     test_menu_mapping();
+    test_game_mapping();
+    test_game_tap_then_hold_exits();
+    test_game_phantom_ok();
     test_phantom_key_while_another_is_held();
     test_phantom_key_right_after_release();
     test_late_click_still_counts_after_switching_keys();

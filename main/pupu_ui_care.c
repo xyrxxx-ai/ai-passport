@@ -1,6 +1,6 @@
 // main/pupu_ui_care.c —— 喂食页和玩耍页:宠物在中间,上面是结果气泡,下面是选择条。
 //
-// 喂食:饭团 / 小饼干 / 星星糖(右上角显示库存)。玩耍:摸摸头 / 接星星(小游戏在 M5)。
+// 喂食:饭团 / 小饼干 / 星星糖(右上角显示库存)。玩耍:摸摸头 / 接星星(小游戏页 pupu_ui_catch.c)。
 // ↑/↓ 选,OK 确认,长按 OK 回首页(产品说明第 7 节)。
 // 确认以后噗噗先做一个反应(吃 2 秒、开心、躲开、摇头),做完之前再按 OK 不响应;
 // 气泡里写这次实际变了多少(已经过上限截断),比如"饱腹 +35  亲密 +3"。
@@ -151,9 +151,11 @@ pupu_ui_req_t pupu_ui_care_action(pupu_action_t act, pupu_model_t *m, uint32_t a
     if (s_pose != PUPU_POSE_IDLE) return PUPU_UI_NONE;  // 还在吃或者躲,等它做完
     if (s_kind == PUPU_CARE_FEED) return feed(m, (pupu_food_t)s_picker.selected, acct_now, now_ms);
     if (s_picker.selected == 0) return pat(m, now_ms);
-    ESP_LOGI(TAG, "接星星在 M5 才做");
-    say(PUPU_TXT_NOT_YET, now_ms);
-    return PUPU_UI_NONE;
+    return PUPU_UI_GO_CATCH;
+}
+
+bool pupu_ui_care_busy(void) {
+    return s_pose != PUPU_POSE_IDLE;
 }
 
 void pupu_ui_care_update(const pupu_model_t *m, uint32_t now_ms) {
