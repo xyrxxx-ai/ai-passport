@@ -53,3 +53,8 @@
 #define PUPU_SYNC_BOND             2    // 每个宠物日第一次被接受的对时:亲密 +2
 #define PUPU_BOND_PER_DAY          20   // 所有来源的亲密加起来每天最多 +20
 #define PUPU_EPOCH_MIN             1767225600u  // 2026-01-01 00:00:00 UTC,更早的手机时间直接拒绝
+
+// ---- 按键(真实毫秒,不受时间倍率影响) ----
+#define PUPU_HOLD_MS               3000  // 蛋:按住 OK 这么久孵化
+#define PUPU_HOLD_GRACE_MS         150   // 蛋:松开后这么久内又按下,算接触抖动,不取消
+#define PUPU_KEY_SWITCH_MS         120   // 一个键松开后这么久内另一个键按下,当作幻影键忽略

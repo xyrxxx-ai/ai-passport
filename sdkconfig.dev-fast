@@ -1,0 +1,4 @@
+# Development only: 1 real minute = 60 pet minutes (1 real minute = 1 pet hour).
+# Build into its own directory so the normal build and sdkconfig are untouched:
+#   idf.py -B build-fast -D SDKCONFIG=build-fast/sdkconfig -D SDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.dev-fast" build
+CONFIG_PUPU_TIME_SCALE=60

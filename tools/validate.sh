@@ -47,6 +47,14 @@ run_static_checks() {
         tests/test_pupu_clock.c main/pupu_clock.c main/pupu_model.c main/pupu_save_codec.c \
         -o "${test_dir}/test_pupu_clock"
     "${test_dir}/test_pupu_clock"
+    "${CC:-cc}" -std=c11 -Wall -Wextra -Werror -Imain \
+        tests/test_pupu_sprite_math.c main/pupu_sprite_math.c \
+        -o "${test_dir}/test_pupu_sprite_math"
+    "${test_dir}/test_pupu_sprite_math"
+    "${CC:-cc}" -std=c11 -Wall -Wextra -Werror -Imain \
+        tests/test_pupu_input.c main/pupu_input.c \
+        -o "${test_dir}/test_pupu_input"
+    "${test_dir}/test_pupu_input"
     "${CC:-cc}" -std=c11 -Wall -Wextra -Werror -Icomponents/bsp/src \
         tests/test_bsp_display_rounding.c components/bsp/src/bsp_display_rounding.c \
         -o "${test_dir}/test_bsp_display_rounding"
@@ -83,6 +91,8 @@ run_static_checks() {
     PYTHONDONTWRITEBYTECODE=1 python3 tests/test_battery_profile.py
     PYTHONDONTWRITEBYTECODE=1 python3 tests/test_deep_sleep_contract.py
     PYTHONDONTWRITEBYTECODE=1 python3 tests/test_key_wake_contract.py
+    PYTHONDONTWRITEBYTECODE=1 python3 tests/test_pupu_charset.py
+    PYTHONDONTWRITEBYTECODE=1 python3 tests/test_pupu_assets_fresh.py
     PYTHONDONTWRITEBYTECODE=1 python3 tests/test_check_repo.py
     PYTHONDONTWRITEBYTECODE=1 python3 tests/test_verify_firmware.py
     PYTHONDONTWRITEBYTECODE=1 python3 tests/test_archive_firmware.py

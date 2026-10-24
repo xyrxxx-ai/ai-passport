@@ -1,0 +1,12 @@
+menu "Pupu"
+
+    config PUPU_TIME_SCALE
+        int "Pet time scale (1 real minute = N pet minutes)"
+        range 1 120
+        default 1
+        help
+            Multiplies only pet time (decay, catch-up, pet days). Screen-off timers,
+            save intervals, the mini-game, and the Bluetooth window always use real time.
+            Use 1 for normal play. sdkconfig.dev-fast sets 60 for development builds.
+
+endmenu

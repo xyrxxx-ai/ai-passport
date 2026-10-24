@@ -1,0 +1,23 @@
+GIMP Palette
+Name: Pupu
+Columns: 4
+#
+# Pupu v1 palette. Every frame uses only these 16 slots; each slot has a fixed job.
+# Slot 0 is transparent: paint it with a fully transparent pixel, never with this colour.
+# Slots 8-10 are the wool; the firmware blends them toward grey as the mood drops.
+  0   0   0	00 clear (transparent)
+ 43  33  24	01 outline
+ 30  27  26	02 face and hooves
+ 74  68  63	03 face highlight
+255 255 255	04 eye white
+242 155 160	05 blush
+200 155  98	06 horn
+142 106  63	07 horn shadow
+255 248 231	08 wool light
+241 224 190	09 wool mid
+214 189 147	10 wool shadow
+247 241 227	11 eggshell
+216 205 182	12 eggshell shade
+ 47  74 138	13 passport ink
+224  58  58	14 spare
+ 47 168  79	15 spare
