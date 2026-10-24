@@ -58,3 +58,8 @@
 #define PUPU_HOLD_MS               3000  // 蛋:按住 OK 这么久孵化
 #define PUPU_HOLD_GRACE_MS         150   // 蛋:松开后这么久内又按下,算接触抖动,不取消
 #define PUPU_KEY_SWITCH_MS         120   // 一个键松开后这么久内另一个键按下,当作幻影键忽略
+
+// ---- 存档时机(真实毫秒,不受时间倍率影响) ----
+#define PUPU_SAVE_DELAY_MS         1000u              // 状态变了以后等这么久(并且等音效放完)再存
+#define PUPU_SAVE_EVERY_MS         (5u * 60u * 1000u) // 开机期间每 5 分钟存一次
+#define PUPU_SAVE_BATTERY_LOW      5                  // 电量降到这个百分比以下时存一次

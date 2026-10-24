@@ -9,9 +9,9 @@ Update this document at the end of every milestone. The product design is in [de
 ## Current state
 
 - **Branch**: `feature/pupu-v1`, created from `006c227` on `origin/main`. It has no upstream tracking branch and is never pushed.
-- **Done**: M0 preparation, M1 pet rule core, M2 first screen.
-- **Next milestone**: M3 care actions, sound effects, and save data.
-- **Commit state**: M0 (`2c77a38`), M1 (`dcf9342`), and M2 are committed to the local `feature/pupu-v1`. The M2 commit hash will be recorded in the next update (a commit cannot contain its own hash). Nothing is pushed.
+- **Done**: M0 preparation, M1 pet rule core, M2 first screen, M3 care actions, sound effects, save data. Most of the M3 on-device acceptance passes; the two remaining checks need the normal build, and you chose to commit first and run them at the first M4 flash (see the M3 section).
+- **Next step**: M4 screen off, deep sleep, and continuous clock.
+- **Commit state**: M0 (`2c77a38`), M1 (`dcf9342`), and M2 (`2ad5410`), and M3 are committed to the local `feature/pupu-v1`. The M3 commit hash is recorded in the M4 section (a commit cannot contain its own hash). Nothing is pushed.
 
 ## Milestones
 
@@ -20,7 +20,7 @@ Update this document at the end of every milestone. The product design is in [de
 | M0 | Preparation: branch, first build, complete-gate baseline, documents in the repository | Done |
 | M1 | Pet rule core | Done |
 | M2 | First screen: see Pupu | Done |
-| M3 | Care actions, sound effects, save data | Not started |
+| M3 | Care actions, sound effects, save data | Done (two device checks moved to M4) |
 | M4 | Screen off, deep sleep, and continuous clock | Not started |
 | M5 | Mini-game "Catch the Stars" | Not started |
 | M6 | Bluetooth sync and Mac web page | Not started |
@@ -250,8 +250,123 @@ Unverified: the normal build (scale 1) has not been flashed; the battery percent
 - The first complete-gate run failed once: the character check found three Chinese memory-log labels in `pupu_app.c` that are not in the font. They never reach the screen, but the check cannot tell, so they became English labels. This shows the check works.
 - Flashing and reading the serial port open `/dev/cu.usbmodem101`, which the sandbox blocks, so those commands run outside the sandbox (you are asked to approve). Opening the serial port restarts the device once.
 
+## M3 care actions, sound effects, save data (2026-10-24, done, two device checks moved to M4)
+
+### What was done
+
+- **Pages** (all newly designed; keys follow section 7 of the design: Up/Down select, OK confirms, holding OK returns home):
+  - OK on the home page opens Feed, Play, or Status; Sync still shows the "not ready yet" bubble (M6). Coming back from another page, the bottom bar stays on the item chosen last.
+  - **Feed page**: Pupu in the middle, rice ball, cookie, and star candy in the bottom bar, and the star candy stock ("star candy x N") in the top-right corner. Confirming plays a 2-second chewing animation and sound, and the bubble shows what actually changed, for example "Fullness +35  Bond +3". From the fourth cookie on it says "bored of these  Fullness +10"; when too full Pupu shakes its head ("can't eat any more"); with no candy it says "no star candy".
+  - **Play page**: pat the head (a happy hop and a snort, "Happiness +5  Bond +1"; from the fourth pat on Pupu dodges, "stop patting!") and Catch the Stars ("not ready yet", built in M5).
+  - **Status page**: fullness and happiness (number plus bar) and star candy; a young Pupu also shows "growth x/100".
+  - When bond reaches 100 the bubble says "all grown up!" with a growth sound, and the adult Pupu appears.
+- **Animations**: 9 new animations with 18 frames (eat, happy, dodge, and head shake for the young and the adult Pupu, plus the adult lying down when very hungry). There are now 15 animations, 31 frames, and 35,712 bytes of pixels. The original 6 strips are byte-for-byte unchanged.
+- **Sound effects, `pupu_sfx`**: the tamagezi synthesizer design (16 kHz mono, square, triangle, and noise waves with fade-in and fade-out), without its per-species pitch table. Five sounds: chew, happy, "no" (head shake, dodge, no candy), hatch, and grow. A stop handshake, `pupu_sfx_stop()`, is ready for M4 to use before deep sleep.
+- **Save data, `pupu_store`**: NVS namespace `pupu`, two slots `slot_a` and `slot_b` written alternately by a background task. **NVS is never erased.**
+- **Pure logic, `pupu_save_policy`**: which slot to load, which slot to write next, and when to save. It has a host test, `tests/test_pupu_save_policy.c`, registered in `tools/validate.sh`.
+- **Font**: 37 new characters (including the multiplication sign `×`, U+00D7); the regenerated font has 171 glyphs (95 ASCII plus 76 Chinese characters and symbols).
+- **Configuration**: `sdkconfig.defaults` adds `CONFIG_I2S_ISR_IRAM_SAFE=y`. Following the rule, the local `sdkconfig` and `build-fast/sdkconfig` were deleted before building, and grep confirmed both builds: normal 48 KB / IRAM-safe / scale 1, time-scaled 48 KB / IRAM-safe / scale 60.
+- `main.c` starts the sound effects before Pupu starts; if audio fails to initialize, the game still runs, just silently.
+
+### How saving works
+
+- **Load**: at boot both slots are read and the valid one with the newer sequence number wins; the next save goes to the other slot. Sequence numbers are compared in a wrap-safe way. Pupu stays as it was when saved (as if the power had been cut); catching up on time away is M4.
+- **When to save** (real time, not affected by time scaling):
+  - about 1 second after feeding, patting, hatching, or growing up, and **only after the sound has finished** (plus 150 ms for the audio still in the DMA buffer);
+  - every 5 minutes while running;
+  - once when the battery first drops below 5%;
+  - not when only the selection moves, and not after a refusal or a dodge. Saving before screen-off and deep sleep is M4.
+- **Priorities**: sound task 5 > LVGL 4 > save task 2. The UI and keys never wait for Flash.
+- **When a save cannot be read**:
+  - save data exists but every slot is damaged: start from a new egg, and the egg page first shows "save data was damaged, starting over" for 4 seconds.
+  - a save written by newer firmware: show "save data is too new, not saving this time" and write **nothing** during this boot; if the other slot is readable, play with it as usual.
+  - a write fails (for example NVS is full): log an error and write the same slot next time, never erasing.
+
+### What the tests cover
+
+`test_pupu_save_policy.c`: first boot; the newer slot wins; sequence wrap-around; one damaged slot (4 kinds of damage); both damaged; future-version lock (including "a missing key does not count"); alternating writes; a simulated power cut halfway through a write, using the real encoder and decoder, which falls back to the last complete save and overwrites the damaged slot next; the 1-second debounce; waiting for sound to finish; the 5-minute timer; millisecond wrap-around; the battery dropping below 5% saves once, and again only after recharging.
+
+Mutation check: 10 rules were deliberately broken in a temporary copy (for example no wrap-safe comparison, picking the older slot, ignoring future versions, not waiting for sound, repeated low-battery saves, overwriting the slot just loaded), and the test failed every time. The repository files were not changed.
+
+### Decisions made while coding (you can overrule them)
+
+1. The Feed and Play bubbles show the actual numbers that changed. The main number (fullness for rice and cookies, happiness for candy and pats) is always shown, even when it is +0; the others only when they changed. The home page still shows no numbers.
+2. While Pupu is reacting (2 seconds for eating, 1.2 seconds for happy, dodge, or head shake), OK is ignored; Up/Down and hold-to-return still work.
+3. With no star candy, only the bubble and the "no" sound appear; Pupu does not shake its head, because it is not refusing.
+4. The star candy stock sits in the top-right corner of the Feed page instead of the bottom bar (bar items are at most 3 characters).
+5. Sub-pages show their title in the top-left corner and a "hold OK to go back" hint at the bottom.
+6. The Status page fits on one screen, so Up/Down do not page. Growth progress is hidden for an adult (design section 12, rule 10).
+7. Moving the selection plays no sound (the design does not ask for it). Volume is fixed at 55%, as in tamagezi.
+8. An adult Pupu also lies down when very hungry. In M2 only the young Pupu did; design section 2 does not distinguish stages.
+9. The session token is written as 0 for now; the RTC time at save is written as usual. M4's continuity check will treat 0 as "the power was cut", so nothing is caught up by mistake.
+10. An NVS record larger than 256 bytes can only come from newer firmware, so it is treated as "too new" and never overwritten.
+
+### On-device acceptance (2026-10-24, time-scaled build, scale 60)
+
+Flashing: with your approval, esptool wrote the time-scaled `build-fast/FoloToy-AI-Passport.bin` (SHA-256 `4573b393…b782`, checked before flashing) in segments: bootloader at `0x0`, partition table at `0x8000`, application at `0x10000`; all three passed verification. NVS (`0x9000`) and RF calibration (`0xF000`) were not erased or written. A 35-minute serial log was recorded on the computer (you power-cycled once in the middle). Numbers were checked against the per-action records in that log.
+
+| Check | Result |
+| --- | --- |
+| Loading the save at boot | Pass: the first boot found no save and started from a new egg; every later boot loaded the slot with the newer sequence number, so Pupu was not a new egg |
+| Alternating slots | Pass: sequence numbers 1 to 20 were written to slot_a and slot_b in turn, with no failed write |
+| When saves happen | Pass: about 1 second after each care action; none after a refusal; one every 5 minutes (at 300.5, 625.5, 925.5, 1225.6, and 1525.6 seconds) |
+| Rice ball | Pass: 82 to 100 shown as "+18" (capped); fed when hungry (fullness 38): Fullness +35 and Bond +3 |
+| Refusing when full | Pass: at fullness 90 or more, rice and cookies were refused and nothing changed |
+| Cookie | Pass (log): the first 3 gave Fullness +10 and Happiness +5, the fourth was "bored of these" (Fullness +10, no happiness). The "can't eat any more" you saw last came from the fifth and sixth cookies, because fullness was 92 after the fourth |
+| No star candy | Pass: correct message, nothing changed |
+| Pat rewards | Pass: Happiness +5 and Bond +1 each time; +4 when happiness capped at 100 |
+| Decay | Pass: fullness -10 and happiness -8 per real minute, stopping at 0 |
+| Memory | Pass: for 26 continuous minutes after the power cycle, free heap stayed at 191,516 bytes and the lowest-ever heap at 186,128 bytes; in the 8.5 minutes before it, about 20 page switches always brought the LVGL pool back to 19% on the home page. The whole log has no error or warning |
+| Fourth pat dodges | **Not seen on the device**: no dodge in either try. The first time, 5 pats were about 3.5 seconds apart and the first to fourth spanned 11.7 seconds; in the retest, 10 pats were about 3.2 seconds apart and the first to fourth spanned 10.1 seconds. The window is 10 pet minutes counted down in whole minutes, which is really 9 to 10 real seconds in the time-scaled build, too short at a normal pace. The rule is covered by the host tests; check it again on the normal build (where the window is 10 real minutes) |
+| Power off and on | Pass (retest): the last save (sequence 36) had fullness 83; you saw 82 on the Status page (about 5 seconds after the save; the time-scaled build loses 1 every 6 seconds), and after power-off and on it was 83, exactly the last save. In the first try fullness went from about 74 back to 91 because that save was 2 minutes before power-off (2 pet hours in the time-scaled build) |
+| Save survives a partial flash | **Not tested**: needs another flash. You chose to commit first without flashing; it moves to the first M4 flash |
+| No crackle when saving during sound | Pass: in the retest, 10 pats each saved about 1 second after the sound, and you heard no noise |
+| New animations and characters | Pass: you checked them and they look normal, with no box characters. You made no comment on volume |
+
+**Lesson for time-scaled testing**: every pet-time window shrinks 60 times in the time-scaled build (the pat window is 10 seconds, the cookie window 1 minute), and the time lost when a power cut falls back to the last save grows 60 times (1 real minute = fullness -10). Press quickly for these checks, and trigger a save before powering off. In the normal build (scale 1) a power cut loses at most 5 minutes, less than 1 point of fullness, and M4 also saves when the screen dims and turns off.
+
+### Interface notes for later milestones
+
+- **Page interface**: every page's action and update return a `pupu_ui_req_t` (`PUPU_UI_CHANGED` asks for a save, `PUPU_UI_GO_*` switches pages). To add a page, extend `page_t`, `show_page()`, `handle_action()`, and `update_page()` in `pupu_app.c`. The bottom bar and the bubble live in `pupu_ui.c` and can be reused directly.
+- **M4 screen off and deep sleep**:
+  - Before deep sleep the save must be synchronous (wait until written). `pupu_store` only has the asynchronous `pupu_store_save()` now, so M4 needs a wait-until-written call, and the "a save is waiting to be written" busy check is also M4.
+  - Before deep sleep call `pupu_sfx_stop()` first, then `bsp_audio_sleep()`. Use `pupu_sfx_busy()` for the sound-playing busy check.
+  - The session token is set in `save_now()` in `pupu_app.c` and is 0 for now.
+- **M5 mini-game**: while a game is running (including paused) there are no timed saves; add that to the `busy` argument of `pupu_autosave_due()`. Star candy comes from winning the game, so feeding candy is tested then.
+
+### Build identity
+
+| Item | Value |
+| --- | --- |
+| Source | `2ad5410` (M2) plus the M3 changes, which is the M3 commit. Both builds were rebuilt before committing and the image SHA-256 values matched those below, so the committed source is the tested source |
+| Firmware version (app descriptor) | `2ad5410-dirty`, ESP-IDF v5.5.3 (the images were built before the commit) |
+| Local incremental image `build/FoloToy-AI-Passport.bin` (scale 1) | SHA-256 `4f5ec2f321543a3ed9219a8a546ad2553742cb5936165f0a5a3717540269a231` (757,088 bytes) |
+| Time-scaled `build-fast/FoloToy-AI-Passport.bin` (scale 60) | SHA-256 `4573b3934d16f02e6fe1f4daaf3a391c25c6cbdbbba09fb3a87bd9a0adb4b782` (757,088 bytes) |
+| Complete-gate `build/FoloToy-AI-Passport-full.bin` | SHA-256 `b0ca950858be250ebd9eb32b5762fde8213a4ea7ca0b331b7a211f0e9c1f290d` (822,624 bytes, flash at `0x0`) |
+| Matching ELF | SHA-256 `c2c70ce693232b2a165ab6230e2e728873f9a78eef5b7a6a2bb7c9a6e160d1cf` |
+| Debug archive | `build/firmware/b0ca950858be250ebd9eb32b5762fde8213a4ea7ca0b331b7a211f0e9c1f290d/`, `archive_firmware.py verify` passes |
+| Application size | 757,088 / 8,323,072 bytes (about 9% of the factory partition), 103,968 bytes more than M2: audio driver, NVS writes, new animations, and new characters |
+| Image flashed to the device | **Time-scaled build** `4573b393…b782` (ELF SHA-256 `fdb0fe583c8bda8e8b254ae3fb72d783a206ad5e3b2197af6152564c82fae1bf`), written by esptool in segments at `0x0`, `0x8000`, and `0x10000`, without touching NVS or RF calibration. The normal build (scale 1) was not flashed |
+
+### Results
+
+```text
+Build: PASS (normal and time-scaled builds pass in the sandbox with no warnings; validate.sh firmware build, merged image, partition layout, and archive checks pass)
+Host tests: PASS (validate.sh repository checks, actionlint, and all host tests pass, including the new test_pupu_save_policy; still needs the two macOS workarounds from M0)
+Device tests: PASS (only the items marked Pass above: loading the save at boot, alternating slots, save timing, rice ball, refusal, cookies, no star candy, pat rewards, decay, 26 minutes without memory loss, power off and on, no crackle while saving, and the new animations and characters; numbers checked against the serial log, sound and visuals confirmed by you)
+Unverified: fourth pat dodges (the window is only 9 to 10 seconds in the time-scaled build and was not reached); save survives a partial flash; the normal build (scale 1) has not been on the device. These three move to the first M4 flash. Feeding star candy waits for M5
+```
+
+### Notes
+
+- The first build missed one header and failed to compile; fixed.
+- Self-review found one hazard: if the sound task failed to start, "sound busy" would stay true forever and saves would never happen. It now falls back to "no sound" when the task cannot start. The complete gate and both local images in the table were built after this fix.
+- When building inside the sandbox, the component manager tries to reach `components-file.espressif.com` to check for updates and is blocked. The build is not affected; this can be ignored.
+- The serial log was recorded by a small time-limited reader script, not the interactive monitor. Opening the port restarts the device once (`USB_UART_CHIP_RESET` in the log); the reset reason is USB and the save is not affected.
+
 ## Next step
 
-M3 care actions, sound effects, and save data (section 10 of the plan): the feed page, patting, the status page, eating and dodging animations, `pupu_sfx` sound effects, and `pupu_store` two-slot save data. Afterward Pupu survives a power cycle. Keep the device plugged into the computer before starting; the art is still placeholder art, and you can draw the real art first if you like (see `assets/images/pupu/README.md`).
+1. Do **M4 screen off, deep sleep, and continuous clock** (section 10 of the plan). Record the M3 commit hash in the M4 section first.
+2. **Finish the last two M3 checks at the first M4 flash**: flash the normal build (scale 1) in segments (needs your approval); after booting, the save should still be there. Then pat 4 times within 10 minutes; the fourth should dodge with "stop patting!".
 
 Running the complete gate still needs the two macOS workarounds recorded under M0 above.

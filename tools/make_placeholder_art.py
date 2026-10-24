@@ -66,13 +66,39 @@ def wool_shade(rx, ry):
     return shade
 
 
-def draw_sheep(f, cx, body_y, rx, ry, head_y, head_r, blink=False, lying=False, big_horns=False):
+def draw_eyes(f, cx, head_y, eyes):
+    for side, ex in ((-1, cx - 4), (1, cx + 3)):
+        if eyes == "blink":
+            f.put(ex, head_y + 1, EYE)
+            f.put(ex + 1, head_y + 1, EYE)
+        elif eyes == "happy":  # ^ ^
+            f.put(ex - 1, head_y + 1, EYE)
+            f.put(ex, head_y, EYE)
+            f.put(ex + 1, head_y, EYE)
+            f.put(ex + 2, head_y + 1, EYE)
+        elif eyes == "squint":  # > <
+            tip, back = (ex + 1, ex) if side < 0 else (ex, ex + 1)
+            f.put(back, head_y - 1, EYE)
+            f.put(tip, head_y, EYE)
+            f.put(back, head_y + 1, EYE)
+        else:
+            f.put(ex, head_y, EYE)
+            f.put(ex + 1, head_y, EYE)
+            f.put(ex, head_y + 1, EYE)
+
+
+def draw_sheep(f, cx, body_y, rx, ry, head_y, head_r, blink=False, lying=False, big_horns=False,
+               head_dx=0, eyes=None, mouth=None, puff=False):
+    """head_dx moves only the head; eyes is open/blink/happy/squint; mouth is open/chew."""
+    if eyes is None:
+        eyes = "blink" if blink else "open"
     if not lying:
         for hx in (cx - rx + 3, cx - rx // 3, cx + rx // 3 - 1, cx + rx - 4):
             for y in range(body_y + ry - 3, body_y + ry + 2):
                 f.put(hx, y, FACE)
                 f.put(hx + 1, y, FACE)
     f.ellipse(cx, body_y, rx, ry, WOOL_MID, OUTLINE, wool_shade(rx, ry))
+    cx += head_dx  # everything from here on is the head
     # curled horns
     curl = 5 if big_horns else 4
     for i in range(curl):
@@ -82,16 +108,21 @@ def draw_sheep(f, cx, body_y, rx, ry, head_y, head_r, blink=False, lying=False, 
         f.put(cx + head_r - i // 2, head_y - 6 + i, HORN_DARK)
     f.ellipse(cx, head_y, head_r, head_r - 1, FACE)
     f.put(cx - head_r + 3, head_y - head_r + 3, FACE_HI)
-    for ex in (cx - 4, cx + 3):
-        if blink:
-            f.put(ex, head_y + 1, EYE)
-            f.put(ex + 1, head_y + 1, EYE)
-        else:
-            f.put(ex, head_y, EYE)
-            f.put(ex + 1, head_y, EYE)
-            f.put(ex, head_y + 1, EYE)
+    draw_eyes(f, cx, head_y, eyes)
     f.put(cx - 6, head_y + 3, BLUSH)
     f.put(cx + 6, head_y + 3, BLUSH)
+    if mouth == "open":
+        for x in (cx - 1, cx):
+            f.put(x, head_y + 3, BLUSH)
+            f.put(x, head_y + 4, BLUSH)
+    elif mouth == "chew":  # closed mouth and a couple of rice crumbs
+        f.put(cx - 1, head_y + 4, FACE_HI)
+        f.put(cx, head_y + 4, FACE_HI)
+        f.put(cx + 3, head_y + head_r, EYE)
+        f.put(cx - 3, head_y + head_r + 1, EYE)
+    if puff:  # the little "pu" snort cloud beside the nose
+        f.ellipse(cx + head_r + 5, head_y + 3, 3, 2, EYE, OUTLINE)
+        f.put(cx + head_r + 9, head_y, EYE)
     # eggshell cap on the head, zigzag lower edge and an ink crack
     top = head_y - head_r - 4
     for x in range(cx - 5, cx + 6):
@@ -158,16 +189,32 @@ def draw_hatch(f, step):
         f.put(x, split + (0 if x % 2 else -1), INK)
 
 
-def child(f, blink=False):
-    draw_sheep(f, 24, 30, 15, 11, 19, 7, blink=blink)
+def child(f, blink=False, dx=0, dy=0, **face):
+    draw_sheep(f, 24 + dx, 30 + dy, 15, 11, 19 + dy, 7, blink=blink, **face)
 
 
 def child_hungry(f, breath):
     draw_sheep(f, 24, 35 - breath, 16, 7 + breath, 28, 7, blink=True, lying=True)
 
 
-def adult(f, blink=False):
-    draw_sheep(f, 24, 29, 18, 13, 16, 8, blink=blink, big_horns=True)
+def adult(f, blink=False, dx=0, dy=0, **face):
+    draw_sheep(f, 24 + dx, 29 + dy, 18, 13, 16 + dy, 8, blink=blink, big_horns=True, **face)
+
+
+def adult_hungry(f, breath):
+    draw_sheep(f, 24, 34 - breath, 19, 8 + breath, 26, 8, blink=True, lying=True, big_horns=True)
+
+
+# Reactions shared by the child and the adult: eat (head bobs while chewing), happy
+# (hop, ^ ^ eyes and a snort cloud), dodge (leans away squinting), shake (head left/right).
+def reaction_frames(body):
+    return [
+        ("eat", [lambda f: body(f, dy=1, mouth="open"), lambda f: body(f, mouth="chew")]),
+        ("happy", [lambda f: body(f, dy=-2, eyes="happy"), lambda f: body(f, eyes="happy", puff=True)]),
+        ("dodge", [lambda f: body(f, dx=-3, head_dx=-1, eyes="squint"),
+                   lambda f: body(f, dx=-5, head_dx=-2, eyes="squint")]),
+        ("shake", [lambda f: body(f, head_dx=-2, eyes="blink"), lambda f: body(f, head_dx=2, eyes="blink")]),
+    ]
 
 
 ANIMS = [
@@ -178,6 +225,9 @@ ANIMS = [
     ("child_hungry", [lambda f: child_hungry(f, 0), lambda f: child_hungry(f, 1)]),
     ("adult_idle", [lambda f: adult(f), lambda f: adult(f, blink=True)]),
 ]
+ANIMS += [("child_" + name, frames) for name, frames in reaction_frames(child)]
+ANIMS += [("adult_hungry", [lambda f: adult_hungry(f, 0), lambda f: adult_hungry(f, 1)])]
+ANIMS += [("adult_" + name, frames) for name, frames in reaction_frames(adult)]
 
 
 def main():

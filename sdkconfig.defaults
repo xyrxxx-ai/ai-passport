@@ -32,6 +32,11 @@ CONFIG_LV_MEM_SIZE_KILOBYTES=48
 # --- 系统 ---
 CONFIG_FREERTOS_HZ=1000
 
+# --- 音频 ---
+# 写 Flash(噗噗存档)时缓存会暂停;把 I2S 中断放进 IRAM,边放音效边存档也不断音、不爆音。
+# 见 docs/hardware-design/AI_HARDWARE_DEVELOPMENT_GUIDE.md 第 8.1 节。
+CONFIG_I2S_ISR_IRAM_SAFE=y
+
 # --- Bluetooth LE / NimBLE ---
 # ESP32-C3 仅支持 BLE；示例只启用单连接 peripheral 所需的最小 host 配置。
 CONFIG_BT_ENABLED=y

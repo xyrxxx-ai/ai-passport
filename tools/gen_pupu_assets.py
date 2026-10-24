@@ -39,6 +39,16 @@ ANIMS = [
     ("child_idle", [2800, 160]),
     ("child_hungry", [900, 900]),
     ("adult_idle", [3000, 160]),
+    # Reactions (M3). The firmware loops each one for a fixed time, e.g. eating for 2 s.
+    ("child_eat", [250, 250]),
+    ("child_happy", [220, 380]),
+    ("child_dodge", [200, 400]),
+    ("child_shake", [180, 180]),
+    ("adult_hungry", [900, 900]),
+    ("adult_eat", [250, 250]),
+    ("adult_happy", [220, 380]),
+    ("adult_dodge", [200, 400]),
+    ("adult_shake", [180, 180]),
 ]
 
 # Must match the wool grey in main/pupu_sprite_math.c; used only for the preview.

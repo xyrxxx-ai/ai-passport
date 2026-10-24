@@ -19,6 +19,11 @@ directly; `tools/gen_pupu_assets.py` converts them into `main/pupu_assets.c` and
 | `child_idle.png` | 96 × 48 PNG RGBA, 2 frames | Young Pupu standing and blinking |
 | `child_hungry.png` | 96 × 48 PNG RGBA, 2 frames | Young Pupu lying down when very hungry |
 | `adult_idle.png` | 96 × 48 PNG RGBA, 2 frames | Adult Pupu standing and blinking |
+| `adult_hungry.png` | 96 × 48 PNG RGBA, 2 frames | Adult Pupu lying down when very hungry |
+| `child_eat.png`, `adult_eat.png` | 96 × 48 PNG RGBA, 2 frames each | Chewing (looped for about 2 seconds) |
+| `child_happy.png`, `adult_happy.png` | 96 × 48 PNG RGBA, 2 frames each | Happy hop and a little snort cloud |
+| `child_dodge.png`, `adult_dodge.png` | 96 × 48 PNG RGBA, 2 frames each | Leaning away when patted too often |
+| `child_shake.png`, `adult_shake.png` | 96 × 48 PNG RGBA, 2 frames each | Shaking the head when too full to eat |
 
 Each strip is 48 px high with one 48 × 48 frame after another from left to right.
 The current strips are placeholders drawn by `tools/make_placeholder_art.py`.

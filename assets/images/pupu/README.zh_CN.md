@@ -18,6 +18,11 @@
 | `child_idle.png` | 96 × 48 PNG RGBA，2 帧 | 幼年噗噗站着眨眼 |
 | `child_hungry.png` | 96 × 48 PNG RGBA，2 帧 | 幼年噗噗很饿时趴着 |
 | `adult_idle.png` | 96 × 48 PNG RGBA，2 帧 | 成年噗噗站着眨眼 |
+| `adult_hungry.png` | 96 × 48 PNG RGBA，2 帧 | 成年噗噗很饿时趴着 |
+| `child_eat.png`、`adult_eat.png` | 各 96 × 48 PNG RGBA，2 帧 | 咀嚼（循环放约 2 秒） |
+| `child_happy.png`、`adult_happy.png` | 各 96 × 48 PNG RGBA，2 帧 | 开心地跳一下，喷出一小团"噗" |
+| `child_dodge.png`、`adult_dodge.png` | 各 96 × 48 PNG RGBA，2 帧 | 摸太多次时躲开 |
+| `child_shake.png`、`adult_shake.png` | 各 96 × 48 PNG RGBA，2 帧 | 太饱时摇头不吃 |
 
 每个文件高 48 像素，每帧 48 × 48，从左到右排成一行。现在的图都是 `tools/make_placeholder_art.py`
 用简单形状画的临时美术。来源：为本仓库生成，没有使用第三方素材。

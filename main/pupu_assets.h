@@ -3,13 +3,22 @@
 // Rerun /usr/bin/python3 tools/gen_pupu_assets.py after changing anything below;
 // tests/test_pupu_assets_fresh.py checks these hashes.
 // sha256 b341a0421886847c6c9eac5c515d90097d09e554290c28ce7a09957981242a2e  assets/images/pupu/pupu.gpl
-// sha256 e7f532fc18b212ea5d2d60e098597279665c641d2df5745bea15e1d0c539029e  tools/gen_pupu_assets.py
+// sha256 3919b3ea116e230017b2d6ba5a7432bd6b4335f81701a973d5e411db6da8b307  tools/gen_pupu_assets.py
 // sha256 6539f4ecbc68e0f15bbc4ef448f23362f46403bb64797532631111168e6a87f7  assets/images/pupu/egg_idle.png
 // sha256 ba14992884b1aa4f0b8833db279b0a7f26c890497bf7a64dafe9dbd8b60ef2d3  assets/images/pupu/egg_wobble.png
 // sha256 0bfbab90f20e10beee77d5aec167b6131cc8fac8a63ebcc3ce493a043401c44b  assets/images/pupu/egg_hatch.png
 // sha256 adc325b0645e54f75f4eb07af0190ef617ad220a92daf86b2d684889699a1185  assets/images/pupu/child_idle.png
 // sha256 5ffd8976eca6fa9609b36dd11d2a740d2c74b7c6368fa199b9fe10908a51240d  assets/images/pupu/child_hungry.png
 // sha256 ae7c51ee5efad8d4ce828a3d5553471dece871bfa070b511d0fdde9a67c7432f  assets/images/pupu/adult_idle.png
+// sha256 bc8fa4ba0e4f6ee127e9ddbfe9e640f8c130b8dbde2f30989d87f8c8efdf36b2  assets/images/pupu/child_eat.png
+// sha256 f58026029b0ecef12955c465806cff267fb6ec35bd8db7147a788efaecec13ba  assets/images/pupu/child_happy.png
+// sha256 5ffd2cfda578ff4fee09abf168974d9e7ae3ff64b7aa9b088dcdc792e2b23a0a  assets/images/pupu/child_dodge.png
+// sha256 37f9dfc184a0c5e21701845af9f67304b2d0c0af1b6ac22edadfbe383d9ee47f  assets/images/pupu/child_shake.png
+// sha256 451cf8fa8cbce0c66de0a44bf05dd7e457b545803d32e9fb77ea6efb34cd35d6  assets/images/pupu/adult_hungry.png
+// sha256 8b093096c9808c03d67d6049555232e9f28192e62919b344dada2ad302387531  assets/images/pupu/adult_eat.png
+// sha256 7041df0d983c0e69f6398fb805dd2d9d06df4db24b10966c0ef79654c7d25b4f  assets/images/pupu/adult_happy.png
+// sha256 26a18d59c47346cdca94d5910fd98b516624ddfb1b0ae0353e2c5dc0960c2cf0  assets/images/pupu/adult_dodge.png
+// sha256 2e546134b9702754739fda93f627f269a75430a84597ff416771e92254f6d612  assets/images/pupu/adult_shake.png
 #pragma once
 
 #include <stdint.h>
@@ -23,6 +32,15 @@ typedef enum {
     PUPU_ANIM_CHILD_IDLE,
     PUPU_ANIM_CHILD_HUNGRY,
     PUPU_ANIM_ADULT_IDLE,
+    PUPU_ANIM_CHILD_EAT,
+    PUPU_ANIM_CHILD_HAPPY,
+    PUPU_ANIM_CHILD_DODGE,
+    PUPU_ANIM_CHILD_SHAKE,
+    PUPU_ANIM_ADULT_HUNGRY,
+    PUPU_ANIM_ADULT_EAT,
+    PUPU_ANIM_ADULT_HAPPY,
+    PUPU_ANIM_ADULT_DODGE,
+    PUPU_ANIM_ADULT_SHAKE,
     PUPU_ANIM_COUNT,
 } pupu_anim_t;
 
@@ -40,6 +58,24 @@ typedef enum {
     PUPU_FRAME_CHILD_HUNGRY_1,
     PUPU_FRAME_ADULT_IDLE_0,
     PUPU_FRAME_ADULT_IDLE_1,
+    PUPU_FRAME_CHILD_EAT_0,
+    PUPU_FRAME_CHILD_EAT_1,
+    PUPU_FRAME_CHILD_HAPPY_0,
+    PUPU_FRAME_CHILD_HAPPY_1,
+    PUPU_FRAME_CHILD_DODGE_0,
+    PUPU_FRAME_CHILD_DODGE_1,
+    PUPU_FRAME_CHILD_SHAKE_0,
+    PUPU_FRAME_CHILD_SHAKE_1,
+    PUPU_FRAME_ADULT_HUNGRY_0,
+    PUPU_FRAME_ADULT_HUNGRY_1,
+    PUPU_FRAME_ADULT_EAT_0,
+    PUPU_FRAME_ADULT_EAT_1,
+    PUPU_FRAME_ADULT_HAPPY_0,
+    PUPU_FRAME_ADULT_HAPPY_1,
+    PUPU_FRAME_ADULT_DODGE_0,
+    PUPU_FRAME_ADULT_DODGE_1,
+    PUPU_FRAME_ADULT_SHAKE_0,
+    PUPU_FRAME_ADULT_SHAKE_1,
     PUPU_FRAME_COUNT,
 } pupu_frame_t;
 

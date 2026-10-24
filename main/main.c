@@ -11,6 +11,7 @@
 #include "demo_radio.h"
 #include "key_guard.h"
 #include "pupu_app.h"
+#include "pupu_sfx.h"
 #include "esp_log.h"
 #include "esp_sleep.h"
 #include "esp_timer.h"
@@ -71,13 +72,17 @@ void app_main(void) {
     }
     bsp_display_backlight(100);
 
-    // 存档(M3)要用 NVS。初始化失败时不擦除,只是这次不能存档。
+    // 存档要用 NVS。初始化失败时不擦除,只是这次不能存档。
     if (demo_radio_nvs_prepare() != ESP_OK) {
-        ESP_LOGW(TAG, "NVS 不可用");
+        ESP_LOGW(TAG, "NVS 不可用,这次开机不能存档");
     }
     // 电量计失败不影响玩:顶栏读不到电量就不显示数字。
     if (bsp_battery_init() != ESP_OK) {
         ESP_LOGW(TAG, "电量计不可用,顶栏不显示电量");
+    }
+    // 音效失败不影响玩,只是没有声音。
+    if (pupu_sfx_start() != ESP_OK) {
+        ESP_LOGW(TAG, "音频不可用,这次开机没有音效");
     }
 
     esp_err_t app_err = ESP_ERR_TIMEOUT;
