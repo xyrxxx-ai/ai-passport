@@ -632,7 +632,7 @@ Flashing: with your approval, esptool wrote the time-scaled `build-fast/FoloToy-
 | Emo expiring on its own | Not tested (needs another emo on the next pet day) |
 | No money | Not tested (pocket money stayed above 30) |
 | Sheep Gate | Two rounds pass: Scholar, 975 sheep vs 641 wolves (R 913‰), won with happiness +15, bond +3, star candy +1; Normal, 402 vs 589 (R 410‰), lost with only fullness −5. Card text, countdown bar, slide, feedback, wolf count, and result card looked right to you |
-| Performance log | Lane change to drawn frame at most 24 / 32 ms (line ≤ 50) pass; LVGL pool 33.9 KB left (line ≥ 4 KB) pass; **slowest frame 54 / 50 ms exceeds the 40 ms line**, **minimum 11 / 24 frames per second below the line of 30**. Sheep Gate's cards are static and the 1-second wolf comparison redraws nothing, so these two numbers are not comparable with Catch the Stars; you noticed no stutter. The working tree now counts frames only while the screen animates and records the state of the slowest frame, to be read at the next flash |
+| Performance log | Lane change to drawn frame at most 24 / 32 ms (line ≤ 50) pass; LVGL pool 33.9 KB left (line ≥ 4 KB) pass; **slowest frame 54 / 50 ms exceeds the 40 ms line**, **minimum 11 / 24 frames per second below the line of 30**. Sheep Gate's cards are static and the 1-second wolf comparison redraws nothing, so these two numbers are not comparable with Catch the Stars; you noticed no stutter. **Accepted by you on 2026-10-25**: Sheep Gate is not held to the Catch the Stars frame-rate line, only to lane latency and memory. Frames are now counted only while the screen animates and the state of the slowest frame is recorded, to be read at the next flash |
 | Sounds | Pass (all distinguishable to you) |
 | Deep sleep and wake | Pass along the way: deep sleep 5 minutes after the screen turned off, the USB serial port disappeared; the state continued after a key wake (job count and pocket money carried over) |
 | Saves | 25 periodic / after-change saves, none failed |
@@ -773,7 +773,7 @@ Flash the **time-scaled build** (scale 60) first: emo's 4 hours take 4 minutes a
 | Matching ELF | SHA-256 `98b57a55a6183f14858d67f7fcb9ecd8d66d4a0f0200e698d1157ea7d1294fba` |
 | Debug bundle | `build/firmware/a1835c4d7e8d54f66edf95594f97e3d54eb011bd9f76ec424cb65aaf0927a754/`, `archive_firmware.py verify` passed |
 | Application size | 1,207,072 / 8,323,072 bytes (about 15% of the factory partition). 55,936 bytes more than M6: five expressions, three 48×48 icons, 46 glyphs, and Sheep Gate |
-| Image flashed to the device | None; M7 has not been flashed. The device still runs the M4 + M5 normal build |
+| Image flashed to the device | On 2026-10-25 the time-scaled `9d266ac` (scale 60) was flashed for acceptance, then the **normal build `3dd683f-dirty`** (scale 1, 3-second waves; `-dirty` only from the progress documents): application SHA-256 `11307079…c2ae`, 1,207,216 bytes, flashed in segments without erasing NVS. Boot log: scale 1, v2 save read (seq 195), fullness 66, happiness 3, bond 71, pocket money 46, font self-check passed. The device now runs this build day to day |
 
 ### Results
 
@@ -781,7 +781,7 @@ Flash the **time-scaled build** (scale 60) first: emo's 4 hours take 4 minutes a
 Build: PASS (validate.sh firmware build, merged image, partition layout, and bundle checks passed, no warnings)
 Host tests: PASS (repository checks, actionlint, and all host tests passed, including the new test_gate_model and the changed test_pupu_model, test_pupu_save_codec, test_pupu_sync_proto, test_pupu_sync_web, test_pupu_charset)
 Device tests: PASS (time-scaled build on the device: old-save migration, font, pat levels 1–5 and the window reset, five work levels, emo pose / behaviour / ending, two Sheep Gate rounds, sounds, deep sleep and wake, saves; see "Device acceptance results" above)
-Unverified: the 6th pat (the time-scaled window is too short); emo expiring on its own, lying down over emo when very hungry, and no money (all three covered by host tests); Sheep Gate's slowest frame of 54 ms exceeds the 40 ms Catch the Stars line, acceptance is your call; the 3-second build is not flashed; the M6 device checklist is also still open
+Unverified: the 6th pat (the time-scaled window is too short); emo expiring on its own, lying down over emo when very hungry, and no money (all three covered by host tests); the 3-second build is not flashed; the M6 device checklist is also still open. Sheep Gate's slowest frame of 54 ms exceeds the 40 ms Catch the Stars line and you accepted it (static cards, the line does not apply)
 ```
 
 ### Notes
