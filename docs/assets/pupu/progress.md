@@ -2,16 +2,16 @@
   <a href="progress.zh_CN.md">简体中文</a> · <strong>English</strong>
 </p>
 
-# Pupu v1 Development Progress
+# Pupu Development Progress
 
-Update this document at the end of every milestone. The product design is in [design.md](design.md); milestone details are in section 10 of the development plan (outside the repository).
+Update this document at the end of every milestone. The product design is in [design.md](design.md); v1 milestone details are in section 10 of the development plan (outside the repository), and the v2 (M7) details are in section 10 of [v2-handoff.md](v2-handoff.md).
 
 ## Current state
 
 - **Branch**: `feature/pupu-v1`, created from `006c227` on `origin/main`. It has no upstream tracking branch and is never pushed.
-- **Done**: M0 preparation, M1 pet rule core, M2 first screen, M3 care actions, sound effects, save data, M4 screen off, deep sleep, and continuous clock, M5 mini-game "Catch the Stars" (M4 and M5 device acceptance: see "M4 + M5 device acceptance"). **M6 Bluetooth sync and Mac web page**: code, host tests, code review, and the complete gate are done, and the fuel-gauge retry is fixed; **not yet tested on the device**.
-- **Next step**: flash and run the M6 device acceptance (see "Device acceptance checklist" in the M6 section), then M7, the WeChat mini program (you need to register a mini-program account first; see "Next step" at the end).
-- **Commit state**: M0 (`2c77a38`), M1 (`dcf9342`), M2 (`2ad5410`), M3 (`c6ba37a`), and M4 + M5 (`a6534e2`) are committed to the local `feature/pupu-v1`. With your approval, M6 (together with the progress notes added after M4 + M5) is committed to the local `feature/pupu-v1`; its hash is recorded in the next milestone's section (a commit cannot contain its own hash). Nothing is pushed.
+- **Done**: M0 preparation, M1 pet rule core, M2 first screen, M3 care actions, sound effects, save data, M4 screen off, deep sleep, and continuous clock, M5 mini-game "Catch the Stars" (device acceptance in "M4 + M5 device acceptance"), M6 Bluetooth sync and Mac web page (code done, not yet tested on the device). **M7 Pupu v2 (pat, work, emo, Sheep Gate)**: code, host tests, and the complete gate are done, and Catch the Stars has been replaced by Sheep Gate; **not yet tested on the device**.
+- **Next step**: flash and run the M7 device acceptance (see "Device acceptance checklist" in the M7 section, together with the M6 checklist), then M8, the WeChat mini program (you need to register a mini-program account first; see "Next step" at the end).
+- **Commit state**: M0 (`2c77a38`), M1 (`dcf9342`), M2 (`2ad5410`), M3 (`c6ba37a`), M4 + M5 (`a6534e2`), M6 (`771d2e5`), the v2 handoff (`a9a7f22`), M7a (`16a2ed1`), and M7b + M7c (`3933967`) are committed to the local `feature/pupu-v1`. With your approval, the M7d documents are committed; their hash is recorded in the next milestone's section (a commit cannot contain its own hash). Nothing is pushed.
 
 ## Milestones
 
@@ -24,8 +24,9 @@ Update this document at the end of every milestone. The product design is in [de
 | M4 | Screen off, deep sleep, and continuous clock | Done; normal-build device acceptance passes; time-scaled deep-sleep catch-up still to test |
 | M5 | Mini-game "Catch the Stars" | Done; device acceptance passes |
 | M6 | Bluetooth sync and Mac web page | Code and host tests done; waiting for device acceptance |
-| M7 | WeChat mini program | Not started |
-| M8 | Full-device acceptance and wrap-up | Not started |
+| M7 | Pupu v2: pat, work, emo, Sheep Gate | Code and host tests done; waiting for device acceptance |
+| M8 | WeChat mini program | Not started |
+| M9 | Full-device acceptance and wrap-up | Not started |
 
 ## M0 preparation (2026-10-23)
 
@@ -616,7 +617,7 @@ Flashing the **time-scaled build** (scale 60) first is recommended: the window's
 
 ### Interface notes for later milestones
 
-- **The M7 mini program** uses the same protocol. `tools/pupu-sync-web/pupu_protocol.js` uses no browser APIs and is a direct reference (encoding, CRC, retries, the order of one whole sync); `tests/pupu_sync_vectors.txt` holds the golden bytes, and the mini program should match them byte for byte.
+- **The M8 mini program** (formerly M7) uses the same protocol. `tools/pupu-sync-web/pupu_protocol.js` uses no browser APIs and is a direct reference (encoding, CRC, retries, the order of one whole sync); `tests/pupu_sync_vectors.txt` holds the golden bytes, and the mini program should match them byte for byte.
 - When scanning in the mini program, write the service UUID in upper case: `6E400001-B5A3-F393-E0A9-E50E24DCCA9E`. Every write is at most 20 bytes, so the MTU never needs changing.
 - The device does not reply before the phone turns notifications on; the phone must finish `notifyBLECharacteristicValueChange({type:'notification'})` before its first write.
 - Only one catch-up per window; reconnecting within the same window does not catch up again.
@@ -650,8 +651,121 @@ Unverified: every item on the M6 device acceptance checklist (a real Bluetooth c
 - A local web server (`python3 -m http.server`) is blocked in Claude's sandbox (listening on a port is not allowed), so the page was tried in a browser through a temporary copy with the protocol code inlined. Running the README command in your own terminal has no such limit.
 - For logging: the sync page logs one `pupu_sync` line per request and reply, and the Bluetooth module logs a `pupu_ble` memory line before starting, after starting, and after stopping; those lines show the memory over the 20 open/close cycles.
 
+## M7 Pupu v2: pat, work, emo, Sheep Gate (2026-10-25, code done, waiting for device acceptance)
+
+The design and the numbers are in [v2-handoff.md](v2-handoff.md): sections 1–7 are the final rules, sections 8–13 the implementation checklist. The work followed its section 10 in four steps; M7a and M7b only added code, and Catch the Stars was replaced as a whole in M7c, so the firmware built after every step. The M6 commit is `771d2e5`.
+
+### What was done
+
+**M7a rule core (commit `16a2ed1`)**
+
+- Slower decay: fullness −1 every 15 minutes, happiness −1 every 20 minutes, −2 when very hungry (`main/pupu_config.h`).
+- Pocket money 0–99, 30 for a newly hatched Pupu; rice ball 5, cookie 3, star candy free. Not enough money returns `PUPU_NO_COIN` and changes nothing. Feeding follows the six-step order of handoff section 2: egg → no candy → cookie while emo (`PUPU_SULKING`) → too full (except star candy while emo) → not enough money → takes effect and charges.
+- Six pat levels: every press within the window counts, saturating at 5; the 4th is `PUPU_ANNOYED`, the 5th `PUPU_ANGRY` with happiness −5, the 6th onward `PUPU_DODGED`; `PUPU_SULKING` while emo.
+- Work, `pupu_model_work()`: jobs 1 and 2 give +10 coins, −5 happiness and use 3 points of the bond allowance; job 3 is `PUPU_WENT_EMO` (`emo_min` = 240); jobs 4 and 5 are `PUPU_OVERWORKED` (+3 / −10); from job 6 `PUPU_EXHAUSTED`.
+- Emo: `emo_min` counts down one per pet minute during both online time and catch-up; eating a star candy clears it at once and sets `emo_cleared`.
+- Sheep Gate settlement `pupu_model_apply_gate_result(m, completed, won)`, with the same rewards as Catch the Stars.
+- Save v2: 71 bytes; `coin` u8, `work_today` u8 and `emo_min` u16 follow the 51-byte v1 payload. A v1 save migrates when read: pocket money 30, the rest 0. The length constants are split per version, so old saves are not rejected as bad records.
+- The sync protocol is unchanged (`proto_ver` 1). The save backup now has 5 chunks; `tests/test_pupu_sync_proto.c` gained a `--dump` mode that regenerates `tests/pupu_sync_vectors.txt`, cross-checked by the web page's Node test.
+
+**M7b pages, art, sounds, and font for pat, work, and emo (commit `3933967`, together with M7c)**
+
+- The play page has three items: pat / work / Sheep Gate. Pat and work each add a 48×48 icon (hand, Excel sheet) overlaid on the pet, moved by the care page every 50 ms: the hand drops onto the head in 0.3 s, pauses, and lifts; on the 5th pat it is bounced away; the sheet falls from the top of the screen in 0.4 s and is caught or hits the head. Pupu reacts, and the sound plays, when the icon lands.
+- Five new poses: annoyed, angry, working, dizzy, emo. The idle pose has a single source, `pupu_ui_idle_pose()`: very hungry (lying down) > emo > annoyed > normal, shared by the home and care pages; `pupu_ui_pet_anim()` replaces IDLE, EMO, and ANNOYED with the lying-down animation when very hungry.
+- The feed page shows "pocket money N  candy ×N" at the top right and dims the label of a food that cannot be afforded; the status page gains a pocket-money row with a 44 px row step. The emo bubble "Exhausted… resting N hours" ranks below "hungry".
+- Art: `tools/make_placeholder_art.py` draws the 5 new expressions for the child and the adult (2 frames each) and the hand and sheet icons; `tools/gen_pupu_assets.py` now reads icons as plain RGBA, each with its own size macros.
+- Sounds: pat, humph, three falling notes, ding-ding, thud, sigh; a new `slide()` helper for glides.
+- Font: `charset.txt` gains 46 glyphs (36 Chinese characters and ÷ √ ∫ ∑ ′ ² ³ ⁴ → −), regenerated with Node 22 and lv_font_conv 1.5.3, 261 glyphs in all. The Sheep Gate strings went into the charset at the same time.
+
+**M7c Sheep Gate (same commit)**
+
+- New files `main/gate_layout.h`, `main/gate_model.h/.c`, `main/pupu_ui_gate.c`, `tests/test_gate_model.c`, `icon_wolf.png`; removed `catch_model.*`, `catch_layout.h`, `pupu_ui_catch.c`, `test_catch_model.c`, the star and cloud icons, the four `PUPU_CATCH_*` constants, `pupu_model_apply_catch_result()`, `PUPU_SFX_STAR / CLOUD`, and the 8 Catch the Stars strings; `PUPU_UI_GO_CATCH` → `PUPU_UI_GO_GATE`, `PAGE_CATCH` → `PAGE_GATE`.
+- Card generation: every value the wave's allowed families can write for the current N is collected into a 1–999 bitmap; best / second / third are picked in the order ① (the wave's families, best gain ≥ 0.6N), ② (the wave's families), ③ (all families), ④ (plain add/subtract fallback); each value then gets a random written form, and the cards are shuffled across the three lanes. The ratio R is updated in `uint32_t` integer arithmetic and the wolf count W rounds up. Multiplication cards appear in at most 2 waves per round. Every tunable number is in `gate_tuning` at the top of `main/gate_model.c`.
+- Page: the bottom picker selects the level and OK must be released to start; three static cards, the countdown bar, "sheep N" and "wave k/6" in the top bar; when time is up the card slides to Pupu in 0.3 s, a best pick flashes a green border and shows "Best!" (or "OK / Worse"); the wolf icon slides in with its number in 1 s and the result card appears 2 s later. The frame-rate, lane-latency, and LVGL memory logs are the same as in Catch the Stars.
+- Sounds: good pick, bad pick, howl.
+
+**M7d documents (this commit)**
+
+- `design.md` / `.zh_CN.md` raised to v2; this progress document gains M7, the former M7 mini program becomes M8 and the final acceptance M9; the file tables in both `assets/images/pupu/README` files; the implementing commits noted at the top of the handoff files.
+
+### Test coverage
+
+- `test_pupu_model`: the new hourly decay values; pats 1–6 at every level, window expiry, the 5th pat clamped at 0; pats while emo are not counted; jobs 1–6 at every level, `emo_min == 240` on job 3, job 3 resetting an existing emo, jobs 4 and 5 still +3 / −10 after a star candy ended emo, a day rollover clearing `work_today` but not `emo_min`, the allowance capped at 20, pocket money capped at 99; the emo countdown reaching 0 through online time and catch-up; emo + too full / no money + cookie → `PUPU_SULKING`, emo + too full + star candy → cleared; rice ball without money → `PUPU_NO_COIN`, too full checked before money; Sheep Gate settlement, a win not ending emo; work adding no bond and never growing Pupu up.
+- `test_pupu_save_codec`: the byte-exact v1 sample decodes to 30 coins and re-encodes as v2; a byte-exact v2 sample round-trips; a version that does not match the payload length is `BAD_LENGTH`; corruption, future versions, version 0.
+- `test_pupu_sync_proto` / `test_pupu_sync_web`: 18 vector pairs, 5 save chunks, 71 bytes, the status bytes after the new decay.
+- `test_gate_model`: N 1–999 × both levels × 6 wave positions × multiplication cards available or used up: every wave's three cards satisfy the cross-multiplication constraints, are distinct, and lie within 1–999; an independent evaluator recomputes each card from its text and matches the model's value; every line ≤ 9 cells; every non-ASCII character is in `PUPU_TXT_GATE_GLYPHS`; the divisibility conditions of ÷, %, and ×1.5; the fixed ratio chain (1000 → 800 → 640 wins → 512 loses); always-best always wins, always-worst always loses with W > N, always-worst from N = 999 does not crash; multiplication cards ≤ 2 waves; the same seed reproduces the round; level selection, countdown, pause, pause during the card slide, quit, and buttons ignored during the wolf settlement.
+- `test_pupu_charset`, `test_pupu_assets_fresh`: the charset and font, the art and the generated C files agree.
+
+### Decisions made while coding (you can overrule them)
+
+1. From the 6th job onward nothing is counted; the day's job count stays at 5.
+2. "Emo cleared" is only reported when Pupu was actually emo when the star candy was eaten; the new result values are appended to the enum so the old numbering is unchanged.
+3. Feeding bubbles do not show the pocket-money change (it does not fit in 240 px; the number at the top right changes); work bubbles use two lines.
+4. Pats from the 6th onward make no sound. Pupu's reaction starts the moment the hand or sheet lands, and so does the sound.
+5. The sheet falls from the top of the screen in 0.4 s; the hand takes 0.3 s.
+6. The annoyed idle pose also shows on the home page, like emo.
+7. The text macro `PUPU_TXT_DODGED` was renamed `PUPU_TXT_ANGRY`; the text is still "Stop patting me!".
+8. Sheep Gate adds one constraint: the best card is always above the current N, so no wave makes "the best choice" lose sheep.
+9. `+√144` is worth 12, with at most three digits under the root; two-step constants have at most two digits, `×a −b` never goes below N, and `+b ×a` has b ≤ N; factorials only 3! to 6!; power bases start at 2.
+10. Fallback ④ is only reached at N ≥ 998 and uses "+1" (clamped to 999) plus two subtraction cards: the handoff's three addition cards would all clamp to 999 near the top. Above roughly N = 830, step ③ fills the worst card with a subtraction.
+11. A consequence of the multiplication cap: when Normal's first two waves show a ×2 / ×3, the two-step waves 3–4 only have −25% left and fall back to all families, becoming add/subtract cards; about 11% of waves in a 400-round simulation.
+12. Buttons are ignored during the 2-second wolf settlement, including the long press, so a visible loss cannot be dodged by quitting.
+13. "Best / OK / Worse" shows for 0.9 s from the moment the card takes effect, together with the next wave; the displayed wolf count caps at 9999.
+
+### Device acceptance checklist (next step)
+
+Flash the **time-scaled build** (scale 60) first: emo's 4 hours take 4 minutes and a pet day 24 minutes. Flash partition by partition without erasing NVS both times, so the first item, old-save migration, is tested along the way.
+
+| Item | How to test | Expected |
+| --- | --- | --- |
+| Old save migration | On a device with an existing v1 save, flash the v2 firmware partition by partition without erasing NVS | Pupu's state is kept; the status page shows pocket money 30 |
+| Six pat tiers | Pat 6 times in a row on the play page | 1–3: hand pats the head + happy hop; 4th: frown stays + "That's enough"; 5th: jumps away, hand knocked off, "Happiness −5"; 6th: no hand, no bubble |
+| Window reset | Wait 10 minutes of pet time | The frown disappears; the next pat counts as the 1st again |
+| Five work tiers | Work 6 times in a row | 1–2: catches the spreadsheet, +10 coins; 3rd: hit on the head + emo bubble; 4–5: hit on the head, +3 coins; 6th: "Can't work anymore" |
+| Emo pose and priority | Go to the home page while emo; then wait for fullness to fall below 15 (a few minutes on the time-scaled build) and compare | Emo idle on the home page; lying down when very hungry |
+| Emo cleared | Feed a star candy (also try at fullness ≥ 90) | Recovers immediately; at fullness ≥ 90 the star candy is still eaten |
+| Emo clears naturally | Wait 4 minutes on the time-scaled build, or wake after deep sleep | Back to normal idle |
+| No money | Spend all the money, then feed a rice ball | Head shake + "No money, go to work"; money unchanged |
+| Sheep Gate Normal / Scholar | Play two rounds of each | Both card lines stay inside the card, not truncated; the card slides over when the countdown bar runs out; every wave shows "Best / Not bad / Poor"; the wolf-pack number slides in; the result card is correct |
+| Performance log | Watch the serial output | Minimum frames per second ≥ 30, longest frame ≤ 40 ms, lane switch to redraw ≤ 50 ms, LVGL pool headroom ≥ 4 KB (Catch the Stars measured about 37 KB) |
+| Font | Watch the serial boot log | `pupu_fonts_selfcheck` reports 0 missing characters |
+| Sound effects | Listen | Slap, hmph, three falling notes, ding-ding, thud, sigh, and wolf howl are all distinguishable |
+
+### Interface notes for later milestones
+
+- **The M8 mini program**: the protocol is unchanged, `proto_ver` stays 1, and `tools/pupu-sync-web/pupu_protocol.js` and `tests/pupu_sync_vectors.txt` remain the reference and the golden bytes. Pocket money and emo are not in STATUS; to add them, bit0 of `flags` is reserved for emo and `proto_ver` goes to 2. The save backup is now a 71-byte v2 record in 5 chunks.
+- The v2 save layout is documented in the comments of `main/pupu_save_codec.h`.
+- Numbers to tune after play testing live in `main/pupu_config.h` and in `gate_tuning` at the top of `main/gate_model.c`.
+
+### Build identity
+
+| Item | Value |
+| --- | --- |
+| Source | `3933967` (M7b + M7c) plus the M7d document changes. The image was built before the document commit; the firmware source equals `3933967` |
+| Firmware version (app descriptor) | `3933967-dirty`, ESP-IDF v5.5.3 (`-dirty` only because the documents were uncommitted) |
+| Complete-gate image `build/FoloToy-AI-Passport-full.bin` | SHA-256 `a1835c4d7e8d54f66edf95594f97e3d54eb011bd9f76ec424cb65aaf0927a754` (1,272,608 bytes, flashed at `0x0`) |
+| Matching ELF | SHA-256 `98b57a55a6183f14858d67f7fcb9ecd8d66d4a0f0200e698d1157ea7d1294fba` |
+| Debug bundle | `build/firmware/a1835c4d7e8d54f66edf95594f97e3d54eb011bd9f76ec424cb65aaf0927a754/`, `archive_firmware.py verify` passed |
+| Application size | 1,207,072 / 8,323,072 bytes (about 15% of the factory partition). 55,936 bytes more than M6: five expressions, three 48×48 icons, 46 glyphs, and Sheep Gate |
+| Image flashed to the device | None; M7 has not been flashed. The device still runs the M4 + M5 normal build |
+
+### Results
+
+```text
+Build: PASS (validate.sh firmware build, merged image, partition layout, and bundle checks passed, no warnings)
+Host tests: PASS (repository checks, actionlint, and all host tests passed, including the new test_gate_model and the changed test_pupu_model, test_pupu_save_codec, test_pupu_sync_proto, test_pupu_sync_web, test_pupu_charset)
+Device tests: NOT RUN (M7 has not been flashed)
+Unverified: every item of the device acceptance checklist above; the M6 device checklist is also still open
+```
+
+### Notes
+
+- On this Mac, `validate.sh` must run outside the sandbox (the script creates temporary directories under `/tmp`) and still needs the two workarounds recorded in M0.
+- The font is regenerated with Node 22 and `npx lv_font_conv@1.5.3`, which downloads the tool once.
+- To preview the new expressions and icons, `/usr/bin/python3 tools/gen_pupu_assets.py` writes `build/pupu-preview.png`.
+
 ## Next step
 
-1. **M6 device acceptance** (needs your approval to flash): connect the device first. Flashing the **time-scaled build** (`build-fast`, scale 60) first is recommended; go through the "Device acceptance checklist" above, testing the fuel gauge and the deep-sleep catch-up left from M4 along the way; then flash the normal build back. Both flashes write the parts separately and leave the save alone.
-2. **Before M7, the WeChat mini program, you need to**: register a personal mini program at mp.weixin.qq.com (real-name, 18 or older, an email not used on any other WeChat platform); declare Bluetooth in its user privacy guide; install WeChat DevTools.
-3. Running the complete gate still needs the two macOS workarounds recorded under M0 above, and now also Node.js 18 or newer.
+1. **M7 device acceptance** (needs your approval to flash): connect the device first. Flash the **time-scaled build** (`build-fast`, scale 60) first and go through the "Device acceptance checklist" in the M7 section item by item, together with the M6 checklist (Bluetooth sync, sync after 3 hours powered off) and the deep-sleep catch-up left over from M4; then flash the normal build again. Flash partition by partition without erasing NVS both times, which also verifies the old-save migration.
+2. **Before M8, the WeChat mini program, you need to**: register a personal mini program at mp.weixin.qq.com (real-name, 18 or older, an email not used on any other WeChat platform); declare Bluetooth in its user privacy guide; install WeChat DevTools.
+3. The complete gate still needs the two macOS workarounds recorded in M0, must run outside the sandbox, and needs Node.js 18 or newer.

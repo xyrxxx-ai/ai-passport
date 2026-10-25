@@ -6,6 +6,8 @@
 
 Status: design final · 2026-10-25 · Target device: FoloToy AI Passport (240 × 320 portrait screen, three physical buttons ↑ ↓ OK, no touch, ESP32-C3, no PSRAM)
 
+**Implemented in commits `16a2ed1` (M7a rule core) and `3933967` (M7b + M7c pages, art, sounds, font, Sheep Gate)**, 2026-10-25; the documentation (M7d) follows in a later commit. The small decisions made while implementing and the device-acceptance progress are in the M7 section of [progress.md](progress.md).
+
 > **In one sentence**: add three things to Pupu. Pat gets a hand animation and "too many pats make it angry"; a new "work" action earns pocket money, feeding now costs money, and too much work makes it emo; the mini-game "Catch the Stars" is replaced by "Sheep Gate", where you pick formula cards across three lanes, with Normal and Scholar levels. The WeChat mini program is **not** in scope this time; every feature in this round must be fully playable without connecting to a phone.
 
 This document is for another development thread. It has only two parts: sections 1 to 7 are the **final product rules** (every number is settled; do not change them), and sections 8 to 13 are the **implementation checklist** (files, fields, tests, order, acceptance). Before starting, read `AGENTS.md` at the repository root and use the `passport-develop` skill; the existing rules are in [`design.md`](design.md), and progress is in [`progress.md`](progress.md).
