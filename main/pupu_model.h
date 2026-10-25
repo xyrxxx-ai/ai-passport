@@ -131,10 +131,6 @@ pupu_outcome_t pupu_model_pat(pupu_model_t *m);
 // 第几次只看 work_today,不看 emo_min。
 pupu_outcome_t pupu_model_work(pupu_model_t *m);
 
-// 小游戏「接星星」结算,第一次收到"结束"事件时只调用一次。completed=false 表示中途退出。
-// (M7c 换成羊过门时删除。)
-pupu_outcome_t pupu_model_apply_catch_result(pupu_model_t *m, bool completed, unsigned stars);
-
 // 小游戏「羊过门」结算,第一次收到"结束"事件时只调用一次。completed=false 表示中途退出,
 // 什么都不变;完成一局饱腹 -5;won=true 再加开心、亲密和星星糖(每天最多 3 颗)。
 // 赢了也不解除 emo。

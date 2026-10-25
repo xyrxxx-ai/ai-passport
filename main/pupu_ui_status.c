@@ -1,5 +1,6 @@
-// main/pupu_ui_status.c —— 状态页:饱腹、开心、星星糖;幼年多一行"成长进度 x/100"
+// main/pupu_ui_status.c —— 状态页:饱腹、开心、零花钱、星星糖;幼年多一行"成长进度 x/100"
 // (就是亲密度,产品说明第 12 节第 10 条)。数字只在这一页显示。
+// 五行 y = 60 / 104 / 148 / 192 / 236,最后一条进度条到 270,在底部"长按 OK 返回"之上。
 // 一页放得下,所以 ↑/↓ 不用翻页;长按 OK 回首页。
 #include "pupu_ui.h"
 
@@ -9,7 +10,7 @@
 #define ROW_X 24
 #define ROW_W 192
 #define ROW_Y0 60
-#define ROW_STEP 56
+#define ROW_STEP 44
 #define BAR_DY 24
 #define BAR_H 10
 
@@ -20,7 +21,7 @@ typedef struct {
     int shown;
 } row_t;
 
-enum { ROW_FULL, ROW_HAPPY, ROW_CANDY, ROW_GROWTH, ROW_COUNT };
+enum { ROW_FULL, ROW_HAPPY, ROW_COIN, ROW_CANDY, ROW_GROWTH, ROW_COUNT };
 static row_t s_rows[ROW_COUNT];
 static bool s_growth;
 
@@ -57,6 +58,7 @@ lv_obj_t *pupu_ui_status_create(const pupu_model_t *m) {
     pupu_ui_page_frame(scr, PUPU_TXT_MENU_STATUS);
     row_create(scr, ROW_FULL, PUPU_TXT_FULL, true);
     row_create(scr, ROW_HAPPY, PUPU_TXT_HAPPY, true);
+    row_create(scr, ROW_COIN, PUPU_TXT_COIN, false);
     row_create(scr, ROW_CANDY, PUPU_TXT_CANDY, false);
     s_growth = m->stage == PUPU_STAGE_CHILD;
     if (s_growth) row_create(scr, ROW_GROWTH, PUPU_TXT_GROWTH, true);
@@ -71,6 +73,7 @@ pupu_ui_req_t pupu_ui_status_action(pupu_action_t act) {
 void pupu_ui_status_update(const pupu_model_t *m) {
     row_set(ROW_FULL, m->full, PUPU_STAT_MAX);
     row_set(ROW_HAPPY, m->happy, PUPU_STAT_MAX);
+    row_set(ROW_COIN, m->coin, PUPU_COIN_MAX);
     row_set(ROW_CANDY, m->candy, PUPU_CANDY_MAX);
     if (s_growth) row_set(ROW_GROWTH, m->bond, PUPU_ADULT_BOND);
 }

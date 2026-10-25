@@ -60,13 +60,7 @@
 #define PUPU_WORK_PER_DAY          5    // 第 6 次起拒绝("做不动了")
 #define PUPU_EMO_MIN               240  // emo 持续 4 小时(宠物分钟);只有星星糖能提前解除
 
-// ---- 小游戏「接星星」结算(M7c 换成羊过门时删除) ----
-#define PUPU_CATCH_WIN_STARS       8    // 接到这么多颗算赢
-#define PUPU_CATCH_FULL_COST       5    // 完成一局:饱腹 -5
-#define PUPU_CATCH_HAPPY           15   // 赢:开心 +15
-#define PUPU_CATCH_BOND            3    // 赢:亲密 +3
-
-// ---- 小游戏「羊过门」结算(奖励和接星星一样;赢的条件在 gate_model 里) ----
+// ---- 小游戏「羊过门」结算(赢的条件 R ≥ 600 在 gate_model 里) ----
 #define PUPU_GATE_FULL_COST        5    // 完成一局:饱腹 -5
 #define PUPU_GATE_HAPPY            15   // 赢:开心 +15
 #define PUPU_GATE_BOND             3    // 赢:亲密 +3

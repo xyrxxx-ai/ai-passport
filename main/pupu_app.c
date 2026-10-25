@@ -60,13 +60,13 @@ _Static_assert((int)ESP_RST_UNKNOWN == PUPU_RESET_UNKNOWN && (int)ESP_RST_POWERO
 static const char *TAG = "pupu_app";
 
 #define LOOP_MS 50
-#define GAME_LOOP_MS 20  // 小游戏页:每 20 ms 一次(catch_model 的一步)
+#define GAME_LOOP_MS 20  // 小游戏页:每 20 ms 一次(gate_model 的一步)
 #define KEY_QUEUE_DEPTH 16
 #define STATUS_LOG_MS 60000
 #define BATTERY_EVERY_MS 30000  // 多久读一次电量(一次 I2C 读,约 1 ms)
 
-typedef enum { PAGE_EGG, PAGE_HOME, PAGE_FEED, PAGE_PLAY, PAGE_STATUS, PAGE_CATCH, PAGE_SYNC } page_t;
-static const char *const k_page_names[] = {"egg", "home", "feed", "play", "status", "catch", "sync"};
+typedef enum { PAGE_EGG, PAGE_HOME, PAGE_FEED, PAGE_PLAY, PAGE_STATUS, PAGE_GATE, PAGE_SYNC } page_t;
+static const char *const k_page_names[] = {"egg", "home", "feed", "play", "status", "gate", "sync"};
 
 typedef struct {
     uint8_t btn;
@@ -118,21 +118,21 @@ static void log_mem(const char *where) {
 static void show_page(page_t page, uint32_t now_ms) {
     lv_obj_t *old = s_screen;
     pupu_input_cancel_hold(&s_input);
-    if (s_page == PAGE_CATCH && old) pupu_ui_catch_leave();  // 没结束的一局作废
+    if (s_page == PAGE_GATE && old) pupu_ui_gate_leave();  // 没结束的一局作废
     s_page = page;
     switch (page) {
     case PAGE_EGG: s_screen = pupu_ui_egg_create(s_notice, now_ms); break;
     case PAGE_HOME: s_screen = pupu_ui_home_create(&s_model, s_battery, s_notice, now_ms); break;
     case PAGE_FEED: s_screen = pupu_ui_care_create(PUPU_CARE_FEED, &s_model, now_ms); break;
     case PAGE_PLAY: s_screen = pupu_ui_care_create(PUPU_CARE_PLAY, &s_model, now_ms); break;
-    case PAGE_CATCH: s_screen = pupu_ui_catch_create(&s_model, now_ms); break;
+    case PAGE_GATE: s_screen = pupu_ui_gate_create(&s_model, now_ms); break;
     case PAGE_SYNC: s_screen = pupu_ui_sync_create(&s_sync_env, &s_sync, now_ms); break;
     default: s_screen = pupu_ui_status_create(&s_model); break;
     }
     s_notice = NULL;
     lv_screen_load(s_screen);
     if (old) lv_obj_delete(old);  // 同一时间只保留一个页面
-    if (s_loop) lv_timer_set_period(s_loop, page == PAGE_CATCH ? GAME_LOOP_MS : LOOP_MS);
+    if (s_loop) lv_timer_set_period(s_loop, page == PAGE_GATE ? GAME_LOOP_MS : LOOP_MS);
     log_mem(k_page_names[page]);
 }
 
@@ -158,7 +158,7 @@ static void handle_req(pupu_ui_req_t req, uint32_t now_ms) {
     case PUPU_UI_GO_FEED: show_page(PAGE_FEED, now_ms); break;
     case PUPU_UI_GO_PLAY: show_page(PAGE_PLAY, now_ms); break;
     case PUPU_UI_GO_STATUS: show_page(PAGE_STATUS, now_ms); break;
-    case PUPU_UI_GO_CATCH: show_page(PAGE_CATCH, now_ms); break;
+    case PUPU_UI_GO_GATE: show_page(PAGE_GATE, now_ms); break;
     case PUPU_UI_GO_SYNC: show_page(PAGE_SYNC, now_ms); break;
     case PUPU_UI_SCREEN_OFF: apply_power(pupu_power_screen_off(&s_power, now_ms), now_ms); break;
     default: break;
@@ -173,7 +173,7 @@ static void handle_action(pupu_action_t act, uint32_t now_ms) {
     case PAGE_HOME: req = pupu_ui_home_action(act, now_ms); break;
     case PAGE_FEED:
     case PAGE_PLAY: req = pupu_ui_care_action(act, &s_model, s_clock.acct_now, now_ms); break;
-    case PAGE_CATCH: req = pupu_ui_catch_action(act, &s_model, s_key_ms, now_ms); break;
+    case PAGE_GATE: req = pupu_ui_gate_action(act, &s_model, s_key_ms, now_ms); break;
     case PAGE_SYNC: req = pupu_ui_sync_action(act, now_ms); break;
     default: req = pupu_ui_status_action(act); break;
     }
@@ -186,7 +186,7 @@ static void update_page(uint32_t now_ms) {
     case PAGE_HOME: pupu_ui_home_update(&s_model, s_battery, now_ms); break;
     case PAGE_FEED:
     case PAGE_PLAY: pupu_ui_care_update(&s_model, now_ms); break;
-    case PAGE_CATCH: handle_req(pupu_ui_catch_update(&s_model, now_ms), now_ms); break;
+    case PAGE_GATE: handle_req(pupu_ui_gate_update(&s_model, now_ms), now_ms); break;
     case PAGE_SYNC: handle_req(pupu_ui_sync_update(now_ms), now_ms); break;
     default: pupu_ui_status_update(&s_model); break;
     }
@@ -218,7 +218,7 @@ static bool app_busy(void) {
     case PAGE_EGG: return s_input.holding || pupu_ui_egg_busy();
     case PAGE_FEED:
     case PAGE_PLAY: return pupu_ui_care_busy();
-    case PAGE_CATCH: return pupu_ui_catch_busy();  // 暂停不算忙
+    case PAGE_GATE: return pupu_ui_gate_busy();  // 选难度和暂停不算忙
     case PAGE_SYNC: return pupu_ui_sync_busy();    // 蓝牙开着、正在开或正在关
     default: return false;
     }
@@ -226,7 +226,7 @@ static bool app_busy(void) {
 
 static pupu_input_mode_t input_mode(void) {
     if (s_page == PAGE_EGG) return PUPU_INPUT_EGG;
-    if (s_page == PAGE_CATCH && pupu_ui_catch_in_round()) return PUPU_INPUT_GAME;
+    if (s_page == PAGE_GATE && pupu_ui_gate_in_round()) return PUPU_INPUT_GAME;
     return PUPU_INPUT_MENU;
 }
 
@@ -248,8 +248,8 @@ static void apply_power(pupu_power_do_t todo, uint32_t now_ms) {
         break;
     case PUPU_PWR_DO_OFF:
         ESP_LOGI(TAG, "熄屏");
-        // 小游戏暂停时熄屏:这一局作废(show_page 会调 pupu_ui_catch_leave),亮屏回到玩耍页
-        if (s_page == PAGE_CATCH) show_page(PAGE_PLAY, now_ms);
+        // 小游戏选难度或暂停时熄屏:这一局作废(show_page 会调 pupu_ui_gate_leave),亮屏回到玩耍页
+        if (s_page == PAGE_GATE) show_page(PAGE_PLAY, now_ms);
         pupu_input_init(&s_input);  // 丢掉按着的键和正在捂热的蛋;熄屏时的松开不会再传过来
         set_panel_on(false);        // DISPOFF:屏幕显存保留
         bsp_display_backlight(0);
@@ -285,9 +285,10 @@ static void apply_power(pupu_power_do_t todo, uint32_t now_ms) {
 }
 
 static void log_status(void) {
-    ESP_LOGI(TAG, "宠物 阶段=%d 饱腹=%d 开心=%d 亲密=%d 星星糖=%d 毛色档=%d 活了 %" PRIu32
-                  " 宠物分钟",
-             s_model.stage, s_model.full, s_model.happy, s_model.bond, s_model.candy,
+    ESP_LOGI(TAG, "宠物 阶段=%d 饱腹=%d 开心=%d 亲密=%d 星星糖=%d 零花钱=%d 今天打工=%d emo剩=%u分 "
+                  "毛色档=%d 活了 %" PRIu32 " 宠物分钟",
+             s_model.stage, s_model.full, s_model.happy, s_model.bond, s_model.candy, s_model.coin,
+             s_model.work_today, (unsigned)s_model.emo_min,
              pupu_tint_step(s_model.full, s_model.happy), s_model.life_min);
 }
 
@@ -336,7 +337,7 @@ static void loop_cb(lv_timer_t *t) {
     if (s_power.stage != PUPU_PWR_OFF) update_page(now_ms);  // 熄屏时不画
 
     // 音效还在放时不写 Flash,避免爆音(见 pupu_sfx.h);小游戏一局没结束时也不存,结算后再存
-    const bool hold_save = pupu_sfx_busy() || (s_page == PAGE_CATCH && pupu_ui_catch_in_round());
+    const bool hold_save = pupu_sfx_busy() || (s_page == PAGE_GATE && pupu_ui_gate_in_round());
     if (pupu_autosave_due(&s_autosave, now_ms, hold_save)) save_now(now_ms);
 
     // 放在存档后面:进 DIM/OFF 时要求的那次存档,下一圈才写;深睡用的是同步存档。

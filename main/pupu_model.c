@@ -258,25 +258,6 @@ static void win_reward(pupu_model_t *m, pupu_outcome_t *out, int happy, uint8_t 
     out->grew = check_grow(m);
 }
 
-pupu_outcome_t pupu_model_apply_catch_result(pupu_model_t *m, bool completed, unsigned stars) {
-    pupu_outcome_t out = { .result = PUPU_OK };
-    if (m->stage == PUPU_STAGE_EGG) {
-        out.result = PUPU_NOT_HATCHED;
-        return out;
-    }
-    if (!completed) {
-        out.result = PUPU_ABORTED;
-        return out;
-    }
-    out.full = add_stat(&m->full, -PUPU_CATCH_FULL_COST);
-    if (stars < PUPU_CATCH_WIN_STARS) {
-        out.result = PUPU_LOST;
-        return out;
-    }
-    win_reward(m, &out, PUPU_CATCH_HAPPY, PUPU_CATCH_BOND);
-    return out;
-}
-
 pupu_outcome_t pupu_model_apply_gate_result(pupu_model_t *m, bool completed, bool won) {
     pupu_outcome_t out = { .result = PUPU_OK };
     if (m->stage == PUPU_STAGE_EGG) {

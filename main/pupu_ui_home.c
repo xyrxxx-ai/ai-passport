@@ -1,6 +1,7 @@
 // main/pupu_ui_home.c —— 首页:顶栏电量、需求气泡、宠物画布、底部 4 个功能。
 //
 // 首页不显示数字,只用表情、毛色和最多一个气泡表达状态(产品说明第 2、8 节)。
+// 气泡优先级:开机提示 / "你回来啦" > "饿了" > emo 的"累坏了…要休息 N 小时"。
 // ↑/↓ 切换底部功能,到头就停;OK 单击进入喂食、玩耍、状态、同步;长按 OK 熄屏。
 // 从别的页面回来时,底部还停在上次选的那一项。
 #include "pupu_ui.h"
@@ -86,7 +87,8 @@ pupu_ui_req_t pupu_ui_home_action(pupu_action_t act, uint32_t now_ms) {
 }
 
 void pupu_ui_home_update(const pupu_model_t *m, int battery, uint32_t now_ms) {
-    pupu_pet_view_play(pupu_ui_pet_anim(m, PUPU_POSE_IDLE), true, now_ms);
+    // 空闲姿势:很饿趴着 > emo > 不耐烦 > 普通待机(pupu_ui_idle_pose)
+    pupu_pet_view_play(pupu_ui_pet_anim(m, pupu_ui_idle_pose(m)), true, now_ms);
     pupu_pet_view_set_tint(pupu_tint_step(m->full, m->happy));
     pupu_pet_view_tick(now_ms);
 
@@ -94,7 +96,9 @@ void pupu_ui_home_update(const pupu_model_t *m, int battery, uint32_t now_ms) {
     if (s_note) {
         pupu_bubble_show(&s_bubble, s_note);
     } else if (m->full < PUPU_HUNGRY_BELOW) {
-        pupu_bubble_show(&s_bubble, PUPU_TXT_HUNGRY);
+        pupu_bubble_show(&s_bubble, PUPU_TXT_HUNGRY);  // "饿了"排在"累坏了"前面
+    } else if (m->emo_min > 0) {
+        pupu_bubble_show(&s_bubble, pupu_ui_emo_text(m));
     } else {
         pupu_bubble_show(&s_bubble, NULL);
     }

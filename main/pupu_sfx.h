@@ -22,11 +22,18 @@ typedef enum {
     PUPU_SFX_HATCH,    // 孵化
     PUPU_SFX_GROW,     // 长大
     PUPU_SFX_BEEP,     // 小游戏倒数 3-2-1
-    PUPU_SFX_STAR,     // 小游戏:接到星星,"叮"
-    PUPU_SFX_CLOUD,    // 小游戏:碰到乌云,"咚"
     PUPU_SFX_WIN,      // 小游戏:赢了
-    PUPU_SFX_LOSE,     // 小游戏:没到 8 颗
+    PUPU_SFX_LOSE,     // 小游戏:输了
     PUPU_SFX_SYNC,     // 同步好了:挥手时清脆的"叮——"
+    PUPU_SFX_PAT,      // 摸摸第 1–3 次:小手拍在头上,"啪"
+    PUPU_SFX_ANNOYED,  // 摸摸第 4 次:不耐烦,"哼"
+    PUPU_SFX_ANGRY,    // 摸摸第 5 次:激烈反抗,三连降
+    PUPU_SFX_COIN,     // 打工收钱,"叮叮"
+    PUPU_SFX_THUD,     // 表格砸中头,"砰":低而长的闷响
+    PUPU_SFX_SIGH,     // 叹气:emo 中摸摸("不想理你")或喂饼干("没胃口")
+    PUPU_SFX_CARD_GOOD,  // 羊过门:选到最佳的卡片
+    PUPU_SFX_CARD_BAD,   // 羊过门:选到最差的卡片
+    PUPU_SFX_HOWL,       // 羊过门:狼群来了
     PUPU_SFX_COUNT,
 } pupu_sfx_t;
 

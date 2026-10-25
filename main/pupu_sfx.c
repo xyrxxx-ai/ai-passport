@@ -74,6 +74,30 @@ static bool rest(uint16_t ms) {
     return tone(0, ms, SILENT);
 }
 
+// 滑音:频率从 hz_from 匀速滑到 hz_to(每 256 个采样换一次频率,听不出台阶)。叹气、狼嚎用。
+static bool slide(uint16_t hz_from, uint16_t hz_to, uint16_t ms, uint8_t wave) {
+    const uint32_t total = SAMPLE_RATE * ms / 1000u;
+    const uint32_t edge = total / 8u + 1u;
+    uint32_t phase = 0;
+    int16_t samples[CHUNK_SAMPLES];
+    for (uint32_t done = 0; done < total;) {
+        if (s_stop) return false;
+        const uint32_t n = total - done < CHUNK_SAMPLES ? total - done : CHUNK_SAMPLES;
+        const int32_t hz = hz_from + ((int32_t)hz_to - (int32_t)hz_from) * (int32_t)done / (int32_t)total;
+        const uint32_t step = (uint32_t)(((uint64_t)(uint32_t)hz << 32) / SAMPLE_RATE);
+        for (uint32_t i = 0; i < n; i++) {
+            const uint32_t pos = done + i;
+            const uint32_t env = pos < edge ? pos * 100u / edge
+                                 : total - pos < edge ? (total - pos) * 100u / edge : 100u;
+            samples[i] = wave_sample(phase, wave, (int16_t)(AMPLITUDE * env / 100u));
+            phase += step;
+        }
+        if (bsp_audio_write(samples, n * sizeof(samples[0])) != ESP_OK) return false;
+        done += n;
+    }
+    return true;
+}
+
 static void play(pupu_sfx_t sfx) {
     switch (sfx) {
     case PUPU_SFX_EAT:  // 三口:咔嚓、咔嚓、咕
@@ -98,12 +122,6 @@ static void play(pupu_sfx_t sfx) {
     case PUPU_SFX_BEEP:
         (void)tone(880, 60, SQUARE);
         break;
-    case PUPU_SFX_STAR:  // 短短的"叮"
-        (void)(tone(1319, 40, TRIANGLE) && tone(1760, 80, TRIANGLE));
-        break;
-    case PUPU_SFX_CLOUD:  // 闷闷的"咚"
-        (void)(tone(0, 40, NOISE) && tone(165, 110, SQUARE));
-        break;
     case PUPU_SFX_WIN:
         (void)(tone(523, 90, TRIANGLE) && tone(659, 90, TRIANGLE) && tone(784, 90, TRIANGLE) &&
                rest(40) && tone(1047, 120, SQUARE) && tone(1319, 220, TRIANGLE));
@@ -113,6 +131,34 @@ static void play(pupu_sfx_t sfx) {
         break;
     case PUPU_SFX_SYNC:  // "叮——":比接星星的"叮"长,高音拖一下
         (void)(tone(1568, 60, TRIANGLE) && rest(20) && tone(2093, 260, TRIANGLE));
+        break;
+    case PUPU_SFX_PAT:  // "啪":一点噪声加一个很短的低音
+        (void)(tone(0, 20, NOISE) && tone(220, 50, TRIANGLE));
+        break;
+    case PUPU_SFX_ANNOYED:  // "哼":鼻音似的两声,比 NO 短、不那么低
+        (void)(tone(311, 60, TRIANGLE) && tone(262, 140, TRIANGLE));
+        break;
+    case PUPU_SFX_ANGRY:  // 三连降
+        (void)(tone(523, 80, SQUARE) && tone(440, 80, SQUARE) && tone(349, 170, SQUARE));
+        break;
+    case PUPU_SFX_COIN:  // "叮叮":两声一样高的叮,再往上一闪
+        (void)(tone(1760, 45, TRIANGLE) && rest(45) && tone(1760, 45, TRIANGLE) && rest(20) &&
+               tone(2349, 110, TRIANGLE));
+        break;
+    case PUPU_SFX_THUD:  // "砰":噪声 40 ms + 110 Hz 方波 160 ms,比 CLOUD 更低更长
+        (void)(tone(0, 40, NOISE) && tone(110, 160, SQUARE));
+        break;
+    case PUPU_SFX_SIGH:  // 叹气:往下滑的长音
+        (void)slide(440, 220, 420, TRIANGLE);
+        break;
+    case PUPU_SFX_CARD_GOOD:  // 短短的往上两声
+        (void)(tone(988, 50, TRIANGLE) && tone(1319, 90, TRIANGLE));
+        break;
+    case PUPU_SFX_CARD_BAD:  // 低低的"嗯哼"
+        (void)(tone(220, 70, SQUARE) && tone(185, 120, SQUARE));
+        break;
+    case PUPU_SFX_HOWL:  // 狼嚎:滑上去再滑下来
+        (void)(slide(392, 659, 350, TRIANGLE) && slide(659, 440, 450, TRIANGLE));
         break;
     default:
         break;

@@ -60,9 +60,9 @@ run_static_checks() {
         -o "${test_dir}/test_pupu_power"
     "${test_dir}/test_pupu_power"
     "${CC:-cc}" -std=c11 -Wall -Wextra -Werror -Imain \
-        tests/test_catch_model.c main/catch_model.c \
-        -o "${test_dir}/test_catch_model"
-    "${test_dir}/test_catch_model"
+        tests/test_gate_model.c main/gate_model.c \
+        -o "${test_dir}/test_gate_model"
+    "${test_dir}/test_gate_model"
     "${CC:-cc}" -std=c11 -Wall -Wextra -Werror -Imain \
         tests/test_pupu_save_policy.c main/pupu_save_policy.c main/pupu_save_codec.c \
         main/pupu_model.c -o "${test_dir}/test_pupu_save_policy"

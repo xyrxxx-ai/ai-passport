@@ -44,7 +44,6 @@ static void test_new_egg(void) {
     assert(pupu_model_feed(&m, PUPU_FOOD_RICE, 0).result == PUPU_NOT_HATCHED);
     assert(pupu_model_pat(&m).result == PUPU_NOT_HATCHED);
     assert(pupu_model_work(&m).result == PUPU_NOT_HATCHED);
-    assert(pupu_model_apply_catch_result(&m, true, 10).result == PUPU_NOT_HATCHED);
     assert(pupu_model_apply_gate_result(&m, true, true).result == PUPU_NOT_HATCHED);
     assert(pupu_model_apply_sync(&m).result == PUPU_NOT_HATCHED);
     assert(same_model(&m, &before));
@@ -609,55 +608,6 @@ static void test_emo_feeding(void) {
     assert(o.result == PUPU_OK && o.emo_cleared && m.emo_min == 0);
 }
 
-static void test_catch_result(void) {
-    // 中途退出:没有任何影响。
-    pupu_model_t m = hatched();
-    pupu_model_t before = m;
-    assert(pupu_model_apply_catch_result(&m, false, 12).result == PUPU_ABORTED);
-    assert(same_model(&m, &before));
-
-    // 完成但不到 8 颗:只扣饱腹 5。
-    pupu_outcome_t o = pupu_model_apply_catch_result(&m, true, 7);
-    assert(o.result == PUPU_LOST && o.full == -5 && o.happy == 0 && o.bond == 0 && o.candy == 0);
-    assert(m.full == 75 && m.happy == 80 && m.candy == 0);
-
-    // 接到 8 颗:饱腹 -5,开心 +15,亲密 +3,星星糖 +1。
-    m = hatched();
-    m.happy = 50;
-    o = pupu_model_apply_catch_result(&m, true, 8);
-    assert(o.result == PUPU_OK && o.full == -5 && o.happy == 15 && o.bond == 3 && o.candy == 1);
-    assert(m.full == 75 && m.happy == 65 && m.bond == 3 && m.candy == 1 && m.candy_today == 1);
-
-    // 饱腹最低扣到 0。
-    m = hatched();
-    m.full = 3;
-    o = pupu_model_apply_catch_result(&m, true, 0);
-    assert(o.full == -3 && m.full == 0);
-
-    // 每天最多得 3 颗星星糖;第 4 次赢照样加开心和亲密。
-    m = hatched();
-    m.happy = 0;
-    for (int i = 0; i < 3; i++) {
-        o = pupu_model_apply_catch_result(&m, true, 9);
-        assert(o.candy == 1);
-    }
-    o = pupu_model_apply_catch_result(&m, true, 9);
-    assert(o.result == PUPU_OK && o.candy == 0 && o.happy == 15 && o.bond == 3);
-    assert(m.candy == 3 && m.candy_today == 3 && m.bond == 12);
-    // 新的一天又能得。
-    m.day_s = PUPU_DAY_S - 1;
-    pupu_model_advance(&m, 1);
-    o = pupu_model_apply_catch_result(&m, true, 9);
-    assert(o.candy == 1 && m.candy == 4);
-
-    // 星星糖最多存 99 颗,存满时不再给,也不占当天的名额。
-    m = hatched();
-    m.candy = 99;
-    o = pupu_model_apply_catch_result(&m, true, 8);
-    assert(o.result == PUPU_OK && o.candy == 0);
-    assert(m.candy == 99 && m.candy_today == 0);
-}
-
 static void test_gate_result(void) {
     // 中途退出:没有任何影响。
     pupu_model_t m = hatched();
@@ -747,11 +697,6 @@ static void test_growth(void) {
 
     m = hatched();
     m.bond = 97;
-    o = pupu_model_apply_catch_result(&m, true, 8);
-    assert(o.grew && m.stage == PUPU_STAGE_ADULT);
-
-    m = hatched();
-    m.bond = 97;
     o = pupu_model_apply_gate_result(&m, true, true);
     assert(o.grew && m.stage == PUPU_STAGE_ADULT);
 
@@ -783,7 +728,6 @@ int main(void) {
     test_work();
     test_emo_countdown();
     test_emo_feeding();
-    test_catch_result();
     test_gate_result();
     test_sync_bonus();
     test_growth();

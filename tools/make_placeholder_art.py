@@ -2,17 +2,17 @@
 """Draw placeholder Pupu frames with simple shapes so development does not wait for art.
 
 Writes one horizontal strip per animation (48 px per frame) into assets/images/pupu/,
-using only colours from assets/images/pupu/pupu.gpl. Replace any strip with real
-pixel art later (for example from Piskel) and rerun tools/gen_pupu_assets.py.
+using only colours from assets/images/pupu/pupu.gpl. Icons (hand, sheet, wolf) are
+plain RGBA images at their own size and may use any colour. Replace any file with
+real pixel art later (for example from Piskel) and rerun tools/gen_pupu_assets.py.
 
 Runs on the system Python 3.9 with Pillow: /usr/bin/python3 tools/make_placeholder_art.py
 """
 
-import math
 import sys
 from pathlib import Path
 
-from PIL import Image
+from PIL import Image, ImageDraw
 
 ROOT = Path(__file__).resolve().parents[1]
 ART_DIR = ROOT / "assets" / "images" / "pupu"
@@ -20,7 +20,6 @@ W = 48
 
 CLEAR, OUTLINE, FACE, FACE_HI, EYE, BLUSH, HORN, HORN_DARK = range(8)
 WOOL_LIGHT, WOOL_MID, WOOL_DARK, SHELL, SHELL_DARK, INK, STAR, CLOUD = range(8, 16)
-ICON_W = 24
 
 
 def read_palette(path):
@@ -84,16 +83,83 @@ def draw_eyes(f, cx, head_y, eyes):
             f.put(back, head_y - 1, EYE)
             f.put(tip, head_y, EYE)
             f.put(back, head_y + 1, EYE)
+        elif eyes == "frown":  # dot eyes under flat brows (annoyed)
+            f.put(ex, head_y, EYE)
+            f.put(ex + 1, head_y, EYE)
+            f.put(ex, head_y + 1, EYE)
+            for bx in range(ex - 1, ex + 3):
+                f.put(bx, head_y - 2, EYE)
+        elif eyes == "angry":  # brows slanting down toward the nose
+            f.put(ex, head_y, EYE)
+            f.put(ex + 1, head_y, EYE)
+            inner = ex + 1 if side < 0 else ex
+            outer = ex - 1 if side < 0 else ex + 2
+            f.put(outer, head_y - 3, EYE)
+            f.put((outer + inner) // 2, head_y - 2, EYE)
+            f.put(inner, head_y - 1, EYE)
+        elif eyes == "dizzy":  # x x
+            for dx, dy in ((-1, -1), (1, -1), (0, 0), (-1, 1), (1, 1)):
+                f.put(ex + dx, head_y + dy, EYE)
+        elif eyes == "sad":  # half-closed lines, lower than a blink
+            f.put(ex - 1, head_y + 1, EYE)
+            f.put(ex, head_y + 1, EYE)
+            f.put(ex + 1, head_y + 1, EYE)
+            f.put(ex + 2, head_y + 2, EYE) if side > 0 else f.put(ex - 2, head_y + 2, EYE)
         else:
             f.put(ex, head_y, EYE)
             f.put(ex + 1, head_y, EYE)
             f.put(ex, head_y + 1, EYE)
 
 
+def draw_sheet(f, cx, body_y):
+    """A small spreadsheet held in front of the body: white paper, grey grid, dark border."""
+    x0, x1, y0, y1 = cx - 8, cx + 8, body_y - 4, body_y + 8
+    for y in range(y0, y1 + 1):
+        for x in range(x0, x1 + 1):
+            edge = x in (x0, x1) or y in (y0, y1)
+            grid = (x - x0) % 4 == 0 or (y - y0) % 4 == 0
+            f.put(x, y, OUTLINE if edge else CLOUD if grid else EYE)
+
+
+def draw_extras(f, cx, head_y, head_r, body_y, extras):
+    top = head_y - head_r - 4  # top of the eggshell cap
+    for extra in extras:
+        if extra == "sweat":  # a passport-ink drop beside the head
+            f.put(cx + head_r + 2, head_y - 3, INK)
+            f.put(cx + head_r + 2, head_y - 2, INK)
+            f.put(cx + head_r + 3, head_y - 2, INK)
+        elif extra == "sweat2":
+            f.put(cx + head_r + 3, head_y, INK)
+            f.put(cx + head_r + 3, head_y + 1, INK)
+            f.put(cx + head_r + 4, head_y + 1, INK)
+        elif extra in ("cloud", "cloud2"):  # a little storm cloud above the head, to the right
+            ox = 1 if extra == "cloud2" else 0
+            ccx, ccy = cx + head_r + 3 + ox, head_y - head_r - 1
+            f.ellipse(ccx, ccy, 5, 3, CLOUD, OUTLINE)
+            f.ellipse(ccx - 1, ccy - 2, 3, 2, CLOUD)
+            if extra == "cloud2":  # rain
+                for dx in (-3, 0, 3):
+                    f.put(ccx + dx, ccy + 5, INK)
+        elif extra == "sheet":
+            draw_sheet(f, cx, body_y)
+        elif extra == "anger":  # a pink cross mark by the temple
+            ax, ay = cx + head_r + 3, head_y - head_r
+            for dx, dy in ((0, 0), (2, 0), (1, 1), (0, 2), (2, 2)):
+                f.put(ax + dx, ay + dy, BLUSH)
+        elif extra in ("stars", "stars2"):  # little gold stars circling above the head
+            ring = [(-6, -1), (0, -4), (6, -1)] if extra == "stars" else [(-4, -3), (3, -4), (6, 0)]
+            for dx, dy in ring:
+                f.put(cx + dx, top + dy, STAR)
+                f.put(cx + dx + 1, top + dy, STAR)
+                f.put(cx + dx, top + dy + 1, STAR)
+                f.put(cx + dx + 1, top + dy + 1, STAR)
+
+
 def draw_sheep(f, cx, body_y, rx, ry, head_y, head_r, blink=False, lying=False, big_horns=False,
-               head_dx=0, eyes=None, mouth=None, puff=False, wave=None):
-    """head_dx moves only the head; eyes is open/blink/happy/squint; mouth is open/chew.
-    wave=0/1 lifts the front leg beside the body (two positions of a wave)."""
+               head_dx=0, head_dy=0, eyes=None, mouth=None, puff=False, wave=None, extras=()):
+    """head_dx/head_dy move only the head; eyes is open/blink/happy/squint/frown/angry/dizzy/sad;
+    mouth is open/chew/sad. wave=0/1 lifts the front leg beside the body (two positions of a wave).
+    extras adds sweat, cloud, sheet, anger or stars (see draw_extras)."""
     if eyes is None:
         eyes = "blink" if blink else "open"
     if not lying:
@@ -112,7 +178,10 @@ def draw_sheep(f, cx, body_y, rx, ry, head_y, head_r, blink=False, lying=False, 
             x = x0 + (i if wave == 0 else 2 + i // 3)
             f.put(x, y0 - i, FACE)
             f.put(x + 1, y0 - i, FACE)
+    if "sheet" in extras:
+        draw_sheet(f, cx, body_y)
     cx += head_dx  # everything from here on is the head
+    head_y += head_dy
     # curled horns
     curl = 5 if big_horns else 4
     for i in range(curl):
@@ -134,6 +203,11 @@ def draw_sheep(f, cx, body_y, rx, ry, head_y, head_r, blink=False, lying=False, 
         f.put(cx, head_y + 4, FACE_HI)
         f.put(cx + 3, head_y + head_r, EYE)
         f.put(cx - 3, head_y + head_r + 1, EYE)
+    elif mouth == "sad":  # corners down
+        f.put(cx - 2, head_y + 5, BLUSH)
+        for x in (cx - 1, cx, cx + 1):
+            f.put(x, head_y + 4, BLUSH)
+        f.put(cx + 2, head_y + 5, BLUSH)
     if puff:  # the little "pu" snort cloud beside the nose
         f.ellipse(cx + head_r + 5, head_y + 3, 3, 2, EYE, OUTLINE)
         f.put(cx + head_r + 9, head_y, EYE)
@@ -147,6 +221,7 @@ def draw_sheep(f, cx, body_y, rx, ry, head_y, head_r, blink=False, lying=False, 
     f.put(cx - 1, top + 2, INK)
     f.put(cx, top + 3, INK)
     f.put(cx + 1, top + 2, INK)
+    draw_extras(f, cx, head_y, head_r, body_y, [e for e in extras if e != "sheet"])
 
 
 def egg_shade(rx, ry):
@@ -211,12 +286,20 @@ def child_hungry(f, breath):
     draw_sheep(f, 24, 35 - breath, 16, 7 + breath, 28, 7, blink=True, lying=True)
 
 
+def child_lying(f, **face):
+    draw_sheep(f, 24, 35, 16, 7, 28, 7, lying=True, **face)
+
+
 def adult(f, blink=False, dx=0, dy=0, **face):
     draw_sheep(f, 24 + dx, 29 + dy, 18, 13, 16 + dy, 8, blink=blink, big_horns=True, **face)
 
 
 def adult_hungry(f, breath):
     draw_sheep(f, 24, 34 - breath, 19, 8 + breath, 26, 8, blink=True, lying=True, big_horns=True)
+
+
+def adult_lying(f, **face):
+    draw_sheep(f, 24, 34, 19, 8, 26, 8, lying=True, big_horns=True, **face)
 
 
 # Reactions shared by the child and the adult: eat (head bobs while chewing), happy
@@ -228,6 +311,24 @@ def reaction_frames(body):
         ("dodge", [lambda f: body(f, dx=-3, head_dx=-1, eyes="squint"),
                    lambda f: body(f, dx=-5, head_dx=-2, eyes="squint")]),
         ("shake", [lambda f: body(f, head_dx=-2, eyes="blink"), lambda f: body(f, head_dx=2, eyes="blink")]),
+    ]
+
+
+# v2 reactions (M7b): annoyed (frown, head tilted), angry (hops away with an anger mark),
+# work (holds a spreadsheet and sweats), dizzy (knocked flat, stars circling), emo (droops
+# under a little storm cloud).
+def v2_frames(body, lying):
+    return [
+        ("annoyed", [lambda f: body(f, head_dx=2, eyes="frown"),
+                     lambda f: body(f, head_dx=3, eyes="frown")]),
+        ("angry", [lambda f: body(f, dx=3, dy=-3, head_dx=1, eyes="angry", extras=("anger",)),
+                   lambda f: body(f, dx=5, head_dx=2, eyes="angry", extras=("anger",))]),
+        ("work", [lambda f: body(f, eyes="open", extras=("sheet", "sweat")),
+                  lambda f: body(f, eyes="blink", extras=("sheet", "sweat2"))]),
+        ("dizzy", [lambda f: lying(f, eyes="dizzy", extras=("stars",)),
+                   lambda f: lying(f, eyes="dizzy", extras=("stars2",))]),
+        ("emo", [lambda f: body(f, head_dy=2, eyes="sad", mouth="sad", extras=("cloud",)),
+                 lambda f: body(f, head_dy=3, eyes="sad", mouth="sad", extras=("cloud2",))]),
     ]
 
 
@@ -247,82 +348,118 @@ ANIMS += [
     ("child_wave", [lambda f: child(f, eyes="happy", wave=0), lambda f: child(f, eyes="happy", wave=1)]),
     ("adult_wave", [lambda f: adult(f, eyes="happy", wave=0), lambda f: adult(f, eyes="happy", wave=1)]),
 ]
+# v2 (M7b): appended after everything above for the same reason.
+ANIMS += [("child_" + name, frames) for name, frames in v2_frames(child, child_lying)]
+ANIMS += [("adult_" + name, frames) for name, frames in v2_frames(adult, adult_lying)]
 
 
-# Mini-game icons (M5), 24 x 24, one frame each.
-def draw_star(f):
-    """A chubby five-point star: outline, gold body, one white glint."""
-    c = 11.5
-    outer, inner = 11.0, 5.2
-    pts = []
-    for k in range(10):
-        r = outer if k % 2 == 0 else inner
-        a = -math.pi / 2 + k * math.pi / 5
-        pts.append((c + r * math.cos(a), c + 1 + r * math.sin(a)))
+# ---- Icons: plain RGBA at their own size, any colour (the palette has no skin tone, green
+# or wolf grey). Shown 1:1 as RGB565A8 and never tinted.
 
-    def inside(x, y):
-        hit = False
-        j = len(pts) - 1
-        for i in range(len(pts)):
-            xi, yi = pts[i]
-            xj, yj = pts[j]
-            if (yi > y) != (yj > y) and x < (xj - xi) * (y - yi) / (yj - yi) + xi:
-                hit = not hit
-            j = i
-        return hit
-
-    for y in range(ICON_W):
-        for x in range(ICON_W):
-            if inside(x + 0.5, y + 0.5):
-                f.put(x, y, STAR)
-    for y in range(ICON_W):
-        for x in range(ICON_W):
-            if f.px[y][x] == STAR and any(
-                    not (0 <= x + dx < ICON_W and 0 <= y + dy < ICON_W) or f.px[y + dy][x + dx] == CLEAR
-                    for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1))):
-                f.put(x, y, OUTLINE)
-    f.put(10, 8, EYE)
-    f.put(10, 9, EYE)
-    f.put(11, 8, EYE)
+def outline_image(image, colour):
+    """1 px outline around every opaque pixel that touches transparency (aliased, no blending)."""
+    size = image.size[0]
+    px = image.load()
+    edge = []
+    for y in range(size):
+        for x in range(size):
+            if px[x, y][3] == 0:
+                continue
+            for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                nx, ny = x + dx, y + dy
+                if not (0 <= nx < size and 0 <= ny < size) or px[nx, ny][3] == 0:
+                    edge.append((x, y))
+                    break
+    for x, y in edge:
+        px[x, y] = colour + (255,)
 
 
-def draw_cloud(f):
-    """A small grumpy rain cloud: three puffs, outline, two eyes."""
-    for cx, cy, rx, ry in ((8, 13, 6, 5), (14, 10, 7, 6), (18, 14, 5, 4), (12, 15, 8, 4)):
-        f.ellipse(cx, cy, rx, ry, CLOUD)
-    for y in range(ICON_W):
-        for x in range(ICON_W):
-            if f.px[y][x] == CLOUD and any(
-                    not (0 <= x + dx < ICON_W and 0 <= y + dy < ICON_W) or f.px[y + dy][x + dx] == CLEAR
-                    for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1))):
-                f.put(x, y, OUTLINE)
-    for ex in (10, 15):
-        f.put(ex, 13, EYE)
-        f.put(ex, 14, OUTLINE)
-    for dx in (8, 13, 18):  # rain drops
-        f.put(dx, 21, INK)
-        f.put(dx - 1, 22, INK)
+def paint_hand(size, palette):
+    """A cartoon hand seen from above, fingers pointing down: it drops onto Pupu's head."""
+    skin, dark, light = (246, 211, 179), palette[OUTLINE], (255, 241, 227)
+    image = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+    d = ImageDraw.Draw(image)
+    d.rounded_rectangle((10, 4, 38, 26), radius=9, fill=skin + (255,))  # palm
+    for x0 in (8, 16, 24, 32):  # four fingers, a 1 px slit between them
+        d.rounded_rectangle((x0, 18, x0 + 6, 42), radius=3, fill=skin + (255,))
+    d.rounded_rectangle((36, 10, 46, 30), radius=4, fill=skin + (255,))  # thumb to the right
+    outline_image(image, dark)
+    px = image.load()
+    for x0 in (8, 16, 24, 32):  # knuckle creases and a palm highlight
+        for x in range(x0 + 2, x0 + 5):
+            px[x, 30] = dark + (255,)
+    for x in range(14, 20):
+        px[x, 9] = light + (255,)
+    return image
 
 
-ICONS = [("icon_star", draw_star), ("icon_cloud", draw_cloud)]
+def paint_sheet(size, palette):
+    """A spreadsheet: green header row, white cells, light grid, dark border, folded corner."""
+    green, white, grid, dark = (29, 111, 66), (255, 255, 255), (200, 207, 200), palette[OUTLINE]
+    image = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+    d = ImageDraw.Draw(image)
+    d.rectangle((5, 3, 42, 44), fill=white + (255,))
+    d.rectangle((5, 3, 42, 11), fill=green + (255,))
+    px = image.load()
+    for x in range(5, 43):
+        for y in range(12, 45):
+            if (x - 5) % 9 == 0 or (y - 12) % 8 == 0:
+                px[x, y] = grid + (255,)
+    for x in range(5, 43):  # header cell dividers
+        if (x - 5) % 9 == 0:
+            for y in range(3, 12):
+                px[x, y] = white + (255,)
+    for i in range(6):  # folded corner, bottom right
+        for j in range(6 - i):
+            px[42 - i, 44 - j] = (0, 0, 0, 0)
+    outline_image(image, dark)
+    # a little "x" like a spreadsheet logo in the header
+    for i in range(5):
+        px[12 + i, 5 + i] = white + (255,)
+        px[16 - i, 5 + i] = white + (255,)
+    return image
+
+
+def paint_wolf(size, palette):
+    """A grey wolf head facing left: pointy ears, long snout, yellow eye, white teeth."""
+    grey, dark_grey, dark = (112, 118, 140), (84, 88, 104), palette[OUTLINE]
+    eye, teeth, nose = (255, 196, 46), (255, 255, 255), (30, 27, 26)
+    image = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+    d = ImageDraw.Draw(image)
+    d.polygon([(12, 4), (20, 18), (6, 18)], fill=grey + (255,))    # left ear
+    d.polygon([(34, 4), (42, 18), (26, 18)], fill=grey + (255,))   # right ear
+    d.ellipse((6, 12, 42, 40), fill=grey + (255,))                 # head
+    d.polygon([(4, 30), (24, 26), (24, 42), (8, 44)], fill=dark_grey + (255,))  # snout, to the left
+    outline_image(image, dark)
+    px = image.load()
+    for x in range(5, 9):  # nose tip
+        for y in range(30, 34):
+            px[x, y] = nose + (255,)
+    for x in range(10, 22, 4):  # teeth along the jaw
+        px[x, 40] = teeth + (255,)
+        px[x, 41] = teeth + (255,)
+        px[x + 1, 40] = teeth + (255,)
+    d2 = ImageDraw.Draw(image)
+    d2.ellipse((27, 20, 33, 26), fill=eye + (255,))  # eye
+    px[30, 23] = dark + (255,)
+    px[31, 23] = dark + (255,)
+    return image
+
+
+ICONS = [
+    ("icon_hand", 48, paint_hand),
+    ("icon_sheet", 48, paint_sheet),
+    ("icon_wolf", 48, paint_wolf),
+]
 
 
 def main():
     palette = read_palette(ART_DIR / "pupu.gpl")
-    for name, paint in ICONS:
-        frame = Frame(ICON_W)
-        paint(frame)
-        image = Image.new("RGBA", (ICON_W, ICON_W), (0, 0, 0, 0))
-        pixels = image.load()
-        for y in range(ICON_W):
-            for x in range(ICON_W):
-                slot = frame.px[y][x]
-                if slot != CLEAR:
-                    r, g, b = palette[slot]
-                    pixels[x, y] = (r, g, b, 255)
+    for name, size, paint in ICONS:
+        image = paint(size, palette)
         out = ART_DIR / "{}.png".format(name)
         image.save(out, optimize=True)
-        print("wrote {} ({} x {})".format(out.relative_to(ROOT), ICON_W, ICON_W))
+        print("wrote {} ({} x {})".format(out.relative_to(ROOT), size, size))
     for name, painters in ANIMS:
         strip = Image.new("RGBA", (W * len(painters), W), (0, 0, 0, 0))
         pixels = strip.load()

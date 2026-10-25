@@ -5,6 +5,8 @@
 #include "pupu_fonts.h"
 #include "pupu_text.h"
 
+#include <stdio.h>
+
 #define PICKER_Y 250
 #define PICKER_H 30
 #define PILL_W 72
@@ -17,18 +19,46 @@ pupu_anim_t pupu_ui_pet_anim(const pupu_model_t *m, pupu_pose_t pose) {
     static const pupu_anim_t child[] = {
         PUPU_ANIM_CHILD_IDLE, PUPU_ANIM_CHILD_EAT, PUPU_ANIM_CHILD_HAPPY,
         PUPU_ANIM_CHILD_DODGE, PUPU_ANIM_CHILD_SHAKE, PUPU_ANIM_CHILD_WAVE,
+        PUPU_ANIM_CHILD_ANNOYED, PUPU_ANIM_CHILD_ANGRY, PUPU_ANIM_CHILD_WORK,
+        PUPU_ANIM_CHILD_DIZZY, PUPU_ANIM_CHILD_EMO,
     };
     static const pupu_anim_t adult[] = {
         PUPU_ANIM_ADULT_IDLE, PUPU_ANIM_ADULT_EAT, PUPU_ANIM_ADULT_HAPPY,
         PUPU_ANIM_ADULT_DODGE, PUPU_ANIM_ADULT_SHAKE, PUPU_ANIM_ADULT_WAVE,
+        PUPU_ANIM_ADULT_ANNOYED, PUPU_ANIM_ADULT_ANGRY, PUPU_ANIM_ADULT_WORK,
+        PUPU_ANIM_ADULT_DIZZY, PUPU_ANIM_ADULT_EMO,
     };
-    _Static_assert(sizeof(child) / sizeof(child[0]) == PUPU_POSE_WAVE + 1, "one anim per pose");
-    _Static_assert(sizeof(adult) / sizeof(adult[0]) == PUPU_POSE_WAVE + 1, "one anim per pose");
+    _Static_assert(sizeof(child) / sizeof(child[0]) == PUPU_POSE_COUNT, "one anim per pose");
+    _Static_assert(sizeof(adult) / sizeof(adult[0]) == PUPU_POSE_COUNT, "one anim per pose");
     const bool grown = m->stage == PUPU_STAGE_ADULT;
-    if (pose == PUPU_POSE_IDLE && m->full < PUPU_STARVING_BELOW) {
+    const bool idle = pose == PUPU_POSE_IDLE || pose == PUPU_POSE_EMO || pose == PUPU_POSE_ANNOYED;
+    if (idle && m->full < PUPU_STARVING_BELOW) {
         return grown ? PUPU_ANIM_ADULT_HUNGRY : PUPU_ANIM_CHILD_HUNGRY;  // 很饿:趴着不动
     }
     return grown ? adult[pose] : child[pose];
+}
+
+pupu_pose_t pupu_ui_idle_pose(const pupu_model_t *m) {
+    if (m->full < PUPU_STARVING_BELOW) return PUPU_POSE_IDLE;  // 很饿最优先,pet_anim 换成趴着
+    if (m->emo_min > 0) return PUPU_POSE_EMO;
+    if (m->pat_win_min > 0 && m->pat_count > PUPU_PAT_LIMIT) return PUPU_POSE_ANNOYED;
+    return PUPU_POSE_IDLE;
+}
+
+const char *pupu_ui_emo_text(const pupu_model_t *m) {
+    static char buf[2][40];
+    static int buf_i;
+    static unsigned shown_hours;
+    static const char *shown;
+    if (m->emo_min == 0) return NULL;
+    const unsigned hours = (m->emo_min + 59u) / 60u;
+    if (shown == NULL || hours != shown_hours) {
+        buf_i ^= 1;  // 换一个缓冲区,气泡才会发现文字变了
+        snprintf(buf[buf_i], sizeof(buf[0]), PUPU_TXT_WENT_EMO, hours);
+        shown_hours = hours;
+        shown = buf[buf_i];
+    }
+    return shown;
 }
 
 lv_obj_t *pupu_ui_screen_create(void) {
@@ -73,6 +103,7 @@ void pupu_bubble_create(pupu_bubble_t *b, lv_obj_t *scr) {
     lv_obj_set_style_pad_ver(b->box, 4, 0);
     lv_obj_remove_flag(b->box, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_CLICKABLE);
     b->text = pupu_ui_label(b->box, "", PUPU_COLOR_INK);
+    lv_obj_set_style_text_align(b->text, LV_TEXT_ALIGN_CENTER, 0);  // 两行的气泡(打工)居中
     lv_obj_add_flag(b->box, LV_OBJ_FLAG_HIDDEN);
     b->shown = NULL;
 }

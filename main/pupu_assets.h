@@ -2,8 +2,8 @@
 //
 // Rerun /usr/bin/python3 tools/gen_pupu_assets.py after changing anything below;
 // tests/test_pupu_assets_fresh.py checks these hashes.
-// sha256 fc022c492eceded54727e10fc763341b54982878e9f8afade81d1ea036d39d66  assets/images/pupu/pupu.gpl
-// sha256 a65cbcc76bbca379c2fe641da9b80431baa6580140b0295f1b4d5248fd6790f9  tools/gen_pupu_assets.py
+// sha256 520e721b43388a85818114d0ddb573fd6a5a0f60495e2f2e4a19a9eeb54aba49  assets/images/pupu/pupu.gpl
+// sha256 2a1c90325b59ed4d243ce451f0216276da634995b144ed1ad2941677a9963062  tools/gen_pupu_assets.py
 // sha256 6539f4ecbc68e0f15bbc4ef448f23362f46403bb64797532631111168e6a87f7  assets/images/pupu/egg_idle.png
 // sha256 ba14992884b1aa4f0b8833db279b0a7f26c890497bf7a64dafe9dbd8b60ef2d3  assets/images/pupu/egg_wobble.png
 // sha256 0bfbab90f20e10beee77d5aec167b6131cc8fac8a63ebcc3ce493a043401c44b  assets/images/pupu/egg_hatch.png
@@ -21,8 +21,19 @@
 // sha256 2e546134b9702754739fda93f627f269a75430a84597ff416771e92254f6d612  assets/images/pupu/adult_shake.png
 // sha256 2ccd68a9274de65fcd3b0db93adbcacc18040ae1d1f9b51173bde4e061551494  assets/images/pupu/child_wave.png
 // sha256 54019fe45938413bd3e987482e8dffd6e5c3c14273a1c180299a11b91b3fbb9a  assets/images/pupu/adult_wave.png
-// sha256 f05142c108908b25fe815eb0c1e4dfb29ae90c4a8ff5a092b41276f16ed8bc2c  assets/images/pupu/icon_star.png
-// sha256 eb1bfcb59977eb9e8e72cd56a64dd3eeb722a0ce2fdadbc07fc2103516810d47  assets/images/pupu/icon_cloud.png
+// sha256 cf0f5781c1cfd9c21d87b1352772bfc58570e676199b1868004042b4de8c5671  assets/images/pupu/child_annoyed.png
+// sha256 75dc771b0964991a160d3233aef5fdbb863da86115b3e85270cc754d315b6bb5  assets/images/pupu/child_angry.png
+// sha256 e222687043b69281373d8e9ff3e86868c1fc8156c55662ccfb58c5e88e87e9cd  assets/images/pupu/child_work.png
+// sha256 9bc84317e6655484627e0652119ce8bc180b4a2ac8af94fc86b2998dfa4c22ee  assets/images/pupu/child_dizzy.png
+// sha256 73324b1ec684ab03e94f25e20ffdc0bc563ca63c8527c651cdd41a1e6d843c2c  assets/images/pupu/child_emo.png
+// sha256 636e4ac43e20e6537215f5ca6750512d6221237dacc9e95f0885a2dedefcb750  assets/images/pupu/adult_annoyed.png
+// sha256 ec662efb1deb2e04260d844d827b5d498f666611ca0b56cfa1ac92ff7880c044  assets/images/pupu/adult_angry.png
+// sha256 10fc40f86a3335e337fdaf22dc873ea59d0e80550627012bfb70009824654a03  assets/images/pupu/adult_work.png
+// sha256 e725fff8b025ed13b4d352100b0a7e441ae71ddb854a4cf96bbcaad44e1187eb  assets/images/pupu/adult_dizzy.png
+// sha256 2d9804050d8007d536b808d235ba866dd40c5e28caa5692f794a4fac1410b3a3  assets/images/pupu/adult_emo.png
+// sha256 76c1c15c58792b44c0c1469bc6a2363082451d51dad4ae0f94641591037aa9c3  assets/images/pupu/icon_hand.png
+// sha256 d2290a89daa011b57ddfcde25a552877852eca75c4ebe7c9ee99cd441d2bdecf  assets/images/pupu/icon_sheet.png
+// sha256 b2e898240c2dd612fa9314d5f9bf6c1ef9767a270b608af29b1d6da3e603583b  assets/images/pupu/icon_wolf.png
 #pragma once
 
 #include <stdint.h>
@@ -47,6 +58,16 @@ typedef enum {
     PUPU_ANIM_ADULT_SHAKE,
     PUPU_ANIM_CHILD_WAVE,
     PUPU_ANIM_ADULT_WAVE,
+    PUPU_ANIM_CHILD_ANNOYED,
+    PUPU_ANIM_CHILD_ANGRY,
+    PUPU_ANIM_CHILD_WORK,
+    PUPU_ANIM_CHILD_DIZZY,
+    PUPU_ANIM_CHILD_EMO,
+    PUPU_ANIM_ADULT_ANNOYED,
+    PUPU_ANIM_ADULT_ANGRY,
+    PUPU_ANIM_ADULT_WORK,
+    PUPU_ANIM_ADULT_DIZZY,
+    PUPU_ANIM_ADULT_EMO,
     PUPU_ANIM_COUNT,
 } pupu_anim_t;
 
@@ -86,6 +107,26 @@ typedef enum {
     PUPU_FRAME_CHILD_WAVE_1,
     PUPU_FRAME_ADULT_WAVE_0,
     PUPU_FRAME_ADULT_WAVE_1,
+    PUPU_FRAME_CHILD_ANNOYED_0,
+    PUPU_FRAME_CHILD_ANNOYED_1,
+    PUPU_FRAME_CHILD_ANGRY_0,
+    PUPU_FRAME_CHILD_ANGRY_1,
+    PUPU_FRAME_CHILD_WORK_0,
+    PUPU_FRAME_CHILD_WORK_1,
+    PUPU_FRAME_CHILD_DIZZY_0,
+    PUPU_FRAME_CHILD_DIZZY_1,
+    PUPU_FRAME_CHILD_EMO_0,
+    PUPU_FRAME_CHILD_EMO_1,
+    PUPU_FRAME_ADULT_ANNOYED_0,
+    PUPU_FRAME_ADULT_ANNOYED_1,
+    PUPU_FRAME_ADULT_ANGRY_0,
+    PUPU_FRAME_ADULT_ANGRY_1,
+    PUPU_FRAME_ADULT_WORK_0,
+    PUPU_FRAME_ADULT_WORK_1,
+    PUPU_FRAME_ADULT_DIZZY_0,
+    PUPU_FRAME_ADULT_DIZZY_1,
+    PUPU_FRAME_ADULT_EMO_0,
+    PUPU_FRAME_ADULT_EMO_1,
     PUPU_FRAME_COUNT,
 } pupu_frame_t;
 
@@ -99,8 +140,13 @@ extern const pupu_anim_info_t pupu_anims[PUPU_ANIM_COUNT];
 extern const uint16_t pupu_frame_ms[PUPU_FRAME_COUNT];
 extern const uint8_t pupu_frames[PUPU_FRAME_COUNT][PUPU_SPRITE_FRAME_BYTES];
 
-// Mini-game icons: 24 x 24 RGB565A8 (colour plane, then alpha plane).
-#define PUPU_ICON_W 24
-#define PUPU_ICON_BYTES (PUPU_ICON_W * PUPU_ICON_W * 3)
-extern const uint8_t pupu_icon_star[PUPU_ICON_BYTES];
-extern const uint8_t pupu_icon_cloud[PUPU_ICON_BYTES];
+// Icons: square RGB565A8 images (colour plane, then alpha plane), shown 1:1.
+#define PUPU_ICON_HAND_W 48
+#define PUPU_ICON_HAND_BYTES (PUPU_ICON_HAND_W * PUPU_ICON_HAND_W * 3)
+extern const uint8_t pupu_icon_hand[PUPU_ICON_HAND_BYTES];
+#define PUPU_ICON_SHEET_W 48
+#define PUPU_ICON_SHEET_BYTES (PUPU_ICON_SHEET_W * PUPU_ICON_SHEET_W * 3)
+extern const uint8_t pupu_icon_sheet[PUPU_ICON_SHEET_BYTES];
+#define PUPU_ICON_WOLF_W 48
+#define PUPU_ICON_WOLF_BYTES (PUPU_ICON_WOLF_W * PUPU_ICON_WOLF_W * 3)
+extern const uint8_t pupu_icon_wolf[PUPU_ICON_WOLF_BYTES];

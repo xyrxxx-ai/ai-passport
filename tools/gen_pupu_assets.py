@@ -4,16 +4,17 @@
 Inputs (assets/images/pupu/):
   pupu.gpl        16-colour palette; slot 0 is transparent
   <anim>.png      one horizontal strip per animation, 48 px per frame
-  icon_<name>.png one 24 x 24 icon (mini-game star and cloud)
+  icon_<name>.png one square icon at the size listed in ICONS (48 px)
 
 Outputs:
   main/pupu_assets.h, main/pupu_assets.c   packed 4-bit frames, palette, animation table,
                                             and RGB565A8 icon pixels
   build/pupu-preview.png                    3x contact sheet with every tint step (not committed)
 
-Every opaque pixel must exactly match one of palette slots 1-15 and every other pixel
-must be fully transparent; otherwise the script stops and names the file and x,y.
-The generated header records the SHA-256 of every input, so
+Every opaque pixel of a frame must exactly match one of palette slots 1-15 and every other
+pixel must be fully transparent; otherwise the script stops and names the file and x,y.
+Icons are read as plain RGBA (any colour, alpha 0 or 255) because they are stored as
+RGB565A8 and never tinted. The generated header records the SHA-256 of every input, so
 tests/test_pupu_assets_fresh.py can tell when the art changed but the C files did not.
 
 Runs on the system Python 3.9 with Pillow: /usr/bin/python3 tools/gen_pupu_assets.py
@@ -54,12 +55,24 @@ ANIMS = [
     # Sync (M6): waves while the window closes after DONE.
     ("child_wave", [250, 250]),
     ("adult_wave", [250, 250]),
+    # v2 (M7b): annoyed (4th pat), angry (5th pat), work, dizzy (knocked out by the sheet),
+    # emo (droops under a little storm cloud). Appended after everything above.
+    ("child_annoyed", [600, 600]),
+    ("child_angry", [160, 340]),
+    ("child_work", [400, 400]),
+    ("child_dizzy", [300, 300]),
+    ("child_emo", [1200, 1200]),
+    ("adult_annoyed", [600, 600]),
+    ("adult_angry", [160, 340]),
+    ("adult_work", [400, 400]),
+    ("adult_dizzy", [300, 300]),
+    ("adult_emo", [1200, 1200]),
 ]
 
-# Mini-game icons (M5). Drawn at their final size and shown 1:1 as RGB565A8 lv_images:
+# Icons, (name, size). Drawn at their final size and shown 1:1 as RGB565A8 lv_images:
 # the 565 colour plane first, then one alpha byte per pixel (LVGL 9 layout).
-ICONS = ["icon_star", "icon_cloud"]
-ICON_W = 24
+# The hand and the spreadsheet are the care-page overlays (M7b); the wolf is Sheep Gate's (M7c).
+ICONS = [("icon_hand", 48), ("icon_sheet", 48), ("icon_wolf", 48)]
 
 # Must match the wool grey in main/pupu_sprite_math.c; used only for the preview.
 WOOL_GREY = [(0xC4, 0xC2, 0xBE), (0xA3, 0xA1, 0x9D), (0x7F, 0x7D, 0x79)]
@@ -121,6 +134,23 @@ def read_strip(path, palette, frame_count, size=W):
     return frames
 
 
+def read_icon(path, size):
+    """A square RGBA icon: any colour, but every pixel fully opaque or fully transparent."""
+    image = Image.open(str(path)).convert("RGBA")
+    if image.size != (size, size):
+        fail("{}: must be {}x{}, got {}x{}".format(path.name, size, size, *image.size))
+    pixels = image.load()
+    out = []
+    for y in range(size):
+        for x in range(size):
+            r, g, b, a = pixels[x, y]
+            if a not in (0, 255):
+                fail("{}:{},{}: half-transparent pixel (alpha {}); use fully "
+                     "transparent or fully opaque".format(path.name, x, y, a))
+            out.append((r, g, b) if a else None)
+    return out
+
+
 def pack(slots):
     out = bytearray()
     for i in range(0, len(slots), 2):
@@ -128,15 +158,15 @@ def pack(slots):
     return bytes(out)
 
 
-def rgb565a8(slots, palette):
-    """Colour plane (little-endian RGB565) followed by the alpha plane."""
+def rgb565a8(pixels):
+    """Colour plane (little-endian RGB565) followed by the alpha plane; None is transparent."""
     colour = bytearray()
     alpha = bytearray()
-    for slot in slots:
-        r, g, b = palette[slot]
+    for rgb in pixels:
+        r, g, b = rgb if rgb is not None else (0, 0, 0)
         value = ((r >> 3) << 11) | ((g >> 2) << 5) | (b >> 3)
         colour += bytes((value & 0xFF, value >> 8))
-        alpha.append(0 if slot == 0 else 0xFF)
+        alpha.append(0xFF if rgb is not None else 0)
     return bytes(colour + alpha)
 
 
@@ -197,14 +227,14 @@ def main():
         anims.append((name, read_strip(path, palette, len(durations))))
         sources.append(path)
     icons = []
-    for name in ICONS:
+    for name, size in ICONS:
         path = ART_DIR / "{}.png".format(name)
         if not path.exists():
             fail("missing {}".format(path.relative_to(ROOT)))
-        icons.append((name, read_strip(path, palette, 1, ICON_W)[0]))
+        icons.append((name, size, read_icon(path, size)))
         sources.append(path)
     listed = {"{}.png".format(name) for name, _ in ANIMS}
-    listed.update("{}.png".format(name) for name in ICONS)
+    listed.update("{}.png".format(name) for name, _ in ICONS)
     for extra in sorted(ART_DIR.glob("*.png")):
         if extra.name not in listed:
             fail("{} is not listed in ANIMS or ICONS; add it or remove the file".format(extra.name))
@@ -247,11 +277,11 @@ def main():
     h.append("extern const uint16_t pupu_frame_ms[PUPU_FRAME_COUNT];")
     h.append("extern const uint8_t pupu_frames[PUPU_FRAME_COUNT][PUPU_SPRITE_FRAME_BYTES];")
     h.append("")
-    h.append("// Mini-game icons: {0} x {0} RGB565A8 (colour plane, then alpha plane).".format(ICON_W))
-    h.append("#define PUPU_ICON_W {}".format(ICON_W))
-    h.append("#define PUPU_ICON_BYTES (PUPU_ICON_W * PUPU_ICON_W * 3)")
-    for name, _ in icons:
-        h.append("extern const uint8_t pupu_{}[PUPU_ICON_BYTES];".format(name))
+    h.append("// Icons: square RGB565A8 images (colour plane, then alpha plane), shown 1:1.")
+    for name, size, _ in icons:
+        h.append("#define PUPU_{}_W {}".format(c_name(name), size))
+        h.append("#define PUPU_{0}_BYTES (PUPU_{0}_W * PUPU_{0}_W * 3)".format(c_name(name)))
+        h.append("extern const uint8_t pupu_{}[PUPU_{}_BYTES];".format(name, c_name(name)))
     h.append("")
 
     c = []
@@ -284,9 +314,9 @@ def main():
             c.append("    },")
     c.append("};")
     c.append("")
-    for name, slots in icons:
-        data = rgb565a8(slots, palette)
-        c.append("const uint8_t pupu_{}[PUPU_ICON_BYTES] = {{".format(name))
+    for name, _, pixels in icons:
+        data = rgb565a8(pixels)
+        c.append("const uint8_t pupu_{}[PUPU_{}_BYTES] = {{".format(name, c_name(name)))
         for row in range(0, len(data), 24):
             c.append("    " + " ".join("0x{:02x},".format(v) for v in data[row:row + 24]))
         c.append("};")

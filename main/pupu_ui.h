@@ -35,7 +35,7 @@ typedef enum {
     PUPU_UI_GO_FEED,
     PUPU_UI_GO_PLAY,  // 也用于从小游戏回到玩耍页
     PUPU_UI_GO_STATUS,
-    PUPU_UI_GO_CATCH,    // 玩耍页选"接星星"
+    PUPU_UI_GO_GATE,     // 玩耍页选"羊过门"
     PUPU_UI_GO_SYNC,     // 首页选"同步"
     PUPU_UI_SCREEN_OFF,  // 首页长按 OK:熄屏
 } pupu_ui_req_t;
@@ -47,10 +47,25 @@ typedef enum {
     PUPU_POSE_HAPPY,
     PUPU_POSE_DODGE,
     PUPU_POSE_SHAKE,
-    PUPU_POSE_WAVE,  // 同步好了:挥手
+    PUPU_POSE_WAVE,     // 同步好了:挥手
+    PUPU_POSE_ANNOYED,  // 不耐烦:皱眉侧头(摸摸第 4 次起,一直保持到窗口结束的待机)
+    PUPU_POSE_ANGRY,    // 激烈反抗:生气跳开(摸摸第 5 次)
+    PUPU_POSE_WORK,     // 打工:抱着表格冒汗
+    PUPU_POSE_DIZZY,    // 被表格砸晕:倒地、头顶转圈
+    PUPU_POSE_EMO,      // emo 待机:垂头,头顶一朵小乌云
+    PUPU_POSE_COUNT,
 } pupu_pose_t;
 
+// 待机、EMO、ANNOYED 这三种"空闲姿势"在很饿(饱腹 < 15)时都换成趴着;反应姿势不换。
 pupu_anim_t pupu_ui_pet_anim(const pupu_model_t *m, pupu_pose_t pose);
+
+// 现在该用哪种空闲姿势,首页和照顾页共用:很饿 > emo > 不耐烦 > 普通,
+// 返回 IDLE(很饿由 pupu_ui_pet_anim 换成趴着)/ EMO / ANNOYED。
+pupu_pose_t pupu_ui_idle_pose(const pupu_model_t *m);
+
+// emo 气泡"累坏了…要休息 N 小时",N = (emo_min + 59) / 60。小时数没变时返回同一个指针,
+// 变了才换一个新缓冲区(配合 pupu_bubble_show 的指针比较)。emo_min 为 0 时返回 NULL。
+const char *pupu_ui_emo_text(const pupu_model_t *m);
 
 lv_obj_t *pupu_ui_screen_create(void);
 lv_obj_t *pupu_ui_label(lv_obj_t *parent, const char *text, uint32_t color);
@@ -107,29 +122,32 @@ pupu_ui_req_t pupu_ui_home_action(pupu_action_t act, uint32_t now_ms);
 void pupu_ui_home_update(const pupu_model_t *m, int battery, uint32_t now_ms);
 
 // ---- 喂食页和玩耍页:宠物 + 结果气泡 + 底部选择条 ----
+// 喂食页右上角显示"零花钱 N  糖 ×N";玩耍页三项:摸摸 / 打工 / 小游戏。
 typedef enum { PUPU_CARE_FEED = 0, PUPU_CARE_PLAY } pupu_care_t;
 lv_obj_t *pupu_ui_care_create(pupu_care_t kind, const pupu_model_t *m, uint32_t now_ms);
 // acct_now 是当前的纪元记账秒(喂食要记下来,见 pupu_clock.h)。
 pupu_ui_req_t pupu_ui_care_action(pupu_action_t act, pupu_model_t *m, uint32_t acct_now,
                                   uint32_t now_ms);
 void pupu_ui_care_update(const pupu_model_t *m, uint32_t now_ms);
-// 噗噗正在做反应(吃、开心、躲开、摇头),这时不变暗、不熄屏。
+// 噗噗正在做反应(吃、开心、躲开、摇头、打工、被砸晕等,含小手和表格的叠层动画),
+// 这时不变暗、不熄屏。
 bool pupu_ui_care_busy(void);
 
-// ---- 小游戏「接星星」(规则在 catch_model.h)----
-lv_obj_t *pupu_ui_catch_create(const pupu_model_t *m, uint32_t now_ms);
+// ---- 小游戏「羊过门」(规则在 gate_model.h)----
+// 进页面先选难度(默认上次选的);OK 松开开始倒数。
+lv_obj_t *pupu_ui_gate_create(const pupu_model_t *m, uint32_t now_ms);
 // key_ms 是这个动作对应的按键时间(用来记换道延迟)。长按退出返回 PUPU_UI_GO_PLAY;
 // 结果出来以后按 OK 也返回 PUPU_UI_GO_PLAY。
-pupu_ui_req_t pupu_ui_catch_action(pupu_action_t act, pupu_model_t *m, uint32_t key_ms,
-                                   uint32_t now_ms);
+pupu_ui_req_t pupu_ui_gate_action(pupu_action_t act, pupu_model_t *m, uint32_t key_ms,
+                                  uint32_t now_ms);
 // 推进游戏、画画面;结算时返回 PUPU_UI_CHANGED。
-pupu_ui_req_t pupu_ui_catch_update(pupu_model_t *m, uint32_t now_ms);
-// 倒数或者游戏中:不变暗、不熄屏。
-bool pupu_ui_catch_busy(void);
-// 这一局还没结束(包括暂停):按键用 GAME 模式,不定时存档。
-bool pupu_ui_catch_in_round(void);
+pupu_ui_req_t pupu_ui_gate_update(pupu_model_t *m, uint32_t now_ms);
+// 倒数、游戏中或狼群结算中:不变暗、不熄屏。选难度和暂停不算。
+bool pupu_ui_gate_busy(void);
+// 这一局还没结束(选难度、倒数、游戏中、暂停):按键用 GAME 模式,不定时存档。
+bool pupu_ui_gate_in_round(void);
 // 离开这一页时调用(比如暂停时熄屏):没结束的一局作废。
-void pupu_ui_catch_leave(void);
+void pupu_ui_gate_leave(void);
 
 // ---- 同步页(协议见 pupu_sync_proto.h,蓝牙见 pupu_ble.h)----
 // 进页面就让 pupu_ctl 打开蓝牙,开一个同步窗口;窗口开着时不能去别的页面。
@@ -143,7 +161,7 @@ bool pupu_ui_sync_busy(void);
 // 这个窗口里对时补算的离开时长(宠物秒),回首页时显示"你回来啦"用;没有补算过返回 0。
 uint64_t pupu_ui_sync_away_pet_s(void);
 
-// ---- 状态页:饱腹、开心、星星糖,幼年多一行成长进度 ----
+// ---- 状态页:饱腹、开心、零花钱、星星糖,幼年多一行成长进度 ----
 lv_obj_t *pupu_ui_status_create(const pupu_model_t *m);
 pupu_ui_req_t pupu_ui_status_action(pupu_action_t act);
 void pupu_ui_status_update(const pupu_model_t *m);
