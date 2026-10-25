@@ -17,6 +17,9 @@ Store reusable font files and generated font sources in `fonts/`.
 - Check Flash and internal-RAM impact before adding a font; the ESP32-C3 has no PSRAM.
 - Do not commit fonts whose license does not permit redistribution.
 
+[`fonts/pupu/`](fonts/pupu/README.md) holds the Pupu pet application's character list,
+the Noto Sans SC license, and the command that generates `main/fonts/pupu_font_16.c`.
+
 ## Images
 
 Store reusable source images and generated display assets in `images/`.
@@ -27,6 +30,7 @@ Store reusable source images and generated display assets in `images/`.
 | [`images/readme-hardware-specs.png`](images/readme-hardware-specs.png) | 2172 × 724, PNG RGBA | Optional technical infographic retained as a reference asset; it is no longer used as the homepage hero. Generated for this repository with the built-in image generation tool on 2026-09-17; the six labels and values were checked against the documented hardware contract. |
 | [`images/logo-wordmark.png`](images/logo-wordmark.png) | 1648 × 336, PNG RGBA | Transparent black wordmark extracted from the repository's original `images/logo.png`; embedded in both project README files for light backgrounds. |
 | [`images/logo-wordmark-dark.png`](images/logo-wordmark-dark.png) | 1648 × 336, PNG RGBA | White version of the extracted wordmark, used by the README `<picture>` element when GitHub is in dark mode. |
+| [`images/pupu/`](images/pupu/README.md) | 48 × 48 frames, PNG RGBA strips and a 16-colour GIMP palette | Pupu pet application pixel art, converted by `tools/gen_pupu_assets.py` into `main/pupu_assets.c`. Placeholder art generated for this repository. |
 
 - Use descriptive names and document dimensions, pixel format, conversion steps, and destination.
 - Prefer formats suitable for the 240 × 320 RGB565 display and account for Flash and internal RAM.

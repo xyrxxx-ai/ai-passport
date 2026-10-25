@@ -1,0 +1,75 @@
+# Pupu sync protocol golden vectors (development plan section 8).
+# Shared by tests/test_pupu_sync_proto.c (device side, replays every line in order)
+# and tests/test_pupu_sync_web.mjs (tools/pupu-sync-web/pupu_protocol.js).
+#
+# Line format:  req|resp  <name>  <hex bytes>  [| key=value ...]
+# - Each "req" is followed by the device's exact "resp".
+# - Fields after "|" are what the JS encoder takes (req) or the JS decoder must
+#   return (resp). Malformed requests have kind=raw: the web page never sends them.
+#
+# Device state before the first line (the C test sets it up):
+#   child, full 84, happy 75, bond 42, candy 3, coin 30, life_min 1000, day_s 3600,
+#   fed 90 pet minutes ago before any sync (fed_acct 0), nothing synced today,
+#   no work today, not emo, time scale 1, acct_now 1798761600 (2027-01-01 00:00:00 UTC).
+# Snapshot for SAVE_BEGIN: the model above plus acct_now, rtc_us 123456789,
+# token 0x0123456789ABCDEF, written as a v2 save record (71 bytes). The CRCs were
+# cross-checked with Python zlib.crc32.
+#
+# Regenerate after a rule change (the C test replays the req lines and rewrites every resp):
+#   cc -std=c11 -Imain tests/test_pupu_sync_proto.c main/pupu_sync_proto.c main/pupu_model.c \
+#      main/pupu_clock.c main/pupu_save_codec.c -o /tmp/sync_proto
+#   /tmp/sync_proto --dump tests/pupu_sync_vectors.txt > /tmp/vectors.txt && mv /tmp/vectors.txt tests/pupu_sync_vectors.txt
+
+req  get_status      02 01                                            | kind=get_status seq=1
+resp status_start    81 01 01 01 54 4b 2a 00 03 5a 00 00 00 00        | kind=status seq=1 proto_ver=1 stage=1 full=84 happy=75 bond=42 candy=3 fed_age_min=90 away_min=0 flags=0
+
+# 3 hours after acct_now: catch up 3 h (v2 decay: full -12, happy -9), then first sync of the day (bond +2).
+req  time            01 02 b0 16 37 6b e0 01                          | kind=time seq=2 epoch=1798772400 tz_min=480
+resp status_synced   81 02 01 01 48 42 2c 00 03 0e 01 b4 00 00        | kind=status seq=2 proto_ver=1 stage=1 full=72 happy=66 bond=44 candy=3 fed_age_min=270 away_min=180 flags=0
+
+# The phone missed the reply and resent the same message: nothing changes.
+req  time_retry      01 02 b0 16 37 6b e0 01                          | kind=time seq=2 epoch=1798772400 tz_min=480
+resp status_retry    81 02 01 01 48 42 2c 00 03 0e 01 b4 00 00        | kind=status seq=2 proto_ver=1 stage=1 full=72 happy=66 bond=44 candy=3 fed_age_min=270 away_min=180 flags=0
+
+# An earlier time is accepted (the clock is corrected) but catches nothing up and gives no bonus.
+req  time_earlier    01 03 74 16 37 6b e0 01                          | kind=time seq=3 epoch=1798772340 tz_min=480
+resp status_earlier  81 03 01 01 48 42 2c 00 03 0e 01 b4 00 00        | kind=status seq=3 proto_ver=1 stage=1 full=72 happy=66 bond=44 candy=3 fed_age_min=270 away_min=180 flags=0
+
+# One second before 2026-01-01 00:00:00 UTC: rejected with code 3.
+req  time_too_old    01 04 ff b8 55 69 00 00                          | kind=time seq=4 epoch=1767225599 tz_min=0
+resp err_time        ee 04 01 03                                      | kind=err seq=4 req_type=1 code=3
+
+req  save_get_early  04 05 00                                         | kind=save_get seq=5 idx=0
+resp err_no_snap     ee 05 04 05                                      | kind=err seq=5 req_type=4 code=5
+
+# A 71-byte v2 save record in 5 chunks (17 + 17 + 17 + 17 + 3). crc32 covers every byte except
+# the last 4, so it equals the record's own trailing CRC. (The CRC of a whole record
+# including its trailing CRC is always the constant 0x2144df1c, which checks nothing.)
+req  save_begin      03 06                                            | kind=save_begin seq=6
+resp save_info       83 06 02 47 00 05 f9 07 d0 01                    | kind=save_info seq=6 save_ver=2 total_len=71 chunk_count=5 crc32=0x01d007f9
+req  save_get_0      04 07 00                                         | kind=save_get seq=7 idx=0
+resp save_chunk_0    84 07 00 50 55 50 55 02 00 00 00 00 00 37 00 01 48 42 2c 00 | kind=save_chunk seq=7 idx=0 data=5055505502000000000037000148422c00
+req  save_get_1      04 08 01                                         | kind=save_get seq=8 idx=1
+resp save_chunk_1    84 08 01 03 9c 04 00 00 00 40 38 00 00 02 00 01 00 00 00 00 | kind=save_chunk seq=8 idx=1 data=039c040000004038000002000100000000
+req  save_get_2      04 09 02                                         | kind=save_get seq=9 idx=2
+resp save_chunk_2    84 09 02 01 8e 03 00 00 00 00 00 00 74 16 37 6b 15 cd 5b 07 | kind=save_chunk seq=9 idx=2 data=018e030000000000007416376b15cd5b07
+req  save_get_3      04 0a 03                                         | kind=save_get seq=10 idx=3
+resp save_chunk_3    84 0a 03 00 00 00 00 ef cd ab 89 67 45 23 01 1e 00 00 00 f9 | kind=save_chunk seq=10 idx=3 data=00000000efcdab89674523011e000000f9
+req  save_get_4      04 0b 04                                         | kind=save_get seq=11 idx=4
+resp save_chunk_4    84 0b 04 07 d0 01                                | kind=save_chunk seq=11 idx=4 data=07d001
+req  save_get_oob    04 0c 05                                         | kind=save_get seq=12 idx=5
+resp err_index       ee 0c 04 04                                      | kind=err seq=12 req_type=4 code=4
+
+# Malformed requests.
+req  unknown_type    07 0d                                            | kind=raw
+resp err_unknown     ee 0d 07 02                                      | kind=err seq=13 req_type=7 code=2
+req  status_too_long 02 0e 00                                         | kind=raw
+resp err_len_status  ee 0e 02 01                                      | kind=err seq=14 req_type=2 code=1
+req  time_too_short  01 0f 00 00 00 00 00                             | kind=raw
+resp err_len_time    ee 0f 01 01                                      | kind=err seq=15 req_type=1 code=1
+
+# DONE is acknowledged every time it arrives.
+req  done            05 10                                            | kind=done seq=16
+resp done_ack        85 10                                            | kind=done_ack seq=16
+req  done_again      05 11                                            | kind=done seq=17
+resp done_ack_again  85 11                                            | kind=done_ack seq=17

@@ -15,6 +15,9 @@
 - 添加字库前评估 Flash 与内部 RAM 影响；ESP32-C3 无 PSRAM。
 - 不提交许可不允许分发的字库。
 
+[`fonts/pupu/`](fonts/pupu/README.zh_CN.md) 存放噗噗宠物应用的中文字表、Noto Sans SC 许可证，
+以及生成 `main/fonts/pupu_font_16.c` 的命令。
+
 ## 图片（images）
 
 可复用的源图与生成的显示资产放在 `images/`。
@@ -25,6 +28,7 @@
 | [`images/readme-hardware-specs.png`](images/readme-hardware-specs.png) | 2172 × 724，PNG RGBA | 保留为可选技术参考图，不再用于首页主视觉。于 2026-09-17 使用内置图像生成工具为本仓库生成；已根据文档中的硬件能力契约核对图中的六项标签与参数。 |
 | [`images/logo-wordmark.png`](images/logo-wordmark.png) | 1648 × 336，PNG RGBA | 从仓库原始 `images/logo.png` 中精确裁切并去除背景的黑色字标；用于中英文项目 README 的浅色主题。 |
 | [`images/logo-wordmark-dark.png`](images/logo-wordmark-dark.png) | 1648 × 336，PNG RGBA | 提取字标的白色版本；README 使用 `<picture>` 在 GitHub 深色主题下显示。 |
+| [`images/pupu/`](images/pupu/README.zh_CN.md) | 48 × 48 的帧，PNG RGBA 长条图和一张 16 色 GIMP 调色板 | 噗噗宠物应用的像素图，由 `tools/gen_pupu_assets.py` 转成 `main/pupu_assets.c`。临时美术，为本仓库生成。 |
 
 - 使用描述性命名，并记录尺寸、像素格式、转换步骤与目标路径。
 - 优先采用适合 240 × 320 RGB565 显示的格式，并纳入 Flash 与内部 RAM 考量。

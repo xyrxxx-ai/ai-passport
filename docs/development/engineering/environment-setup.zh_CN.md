@@ -368,7 +368,7 @@ grep -E 'CONFIG_IDF_TARGET|CONFIG_ESPTOOLPY_FLASHSIZE|CONFIG_ESP_CONSOLE_USB_SER
 ./tools/validate.sh
 ```
 
-静态门禁需要 Python 3、C 编译器、`curl`、`tar` 和 SHA-256 工具；未安装
+静态门禁需要 Python 3、C 编译器、`curl`、`tar`、SHA-256 工具和 Node.js 18 或更新版本（给 `tests/test_pupu_sync_web.mjs` 用；macOS 用 `brew install node`，Linux 发行版自带的版本够 18 就用它，不够就从 nodejs.org 安装）；未安装
 `actionlint` 时，会把带固定校验和的版本下载到 `/tmp`。固件门禁是默认优先的
 编译方式，它使用隔离的临时构建，并生成经过验证的 `0x0` 镜像：
 

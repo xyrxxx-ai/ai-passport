@@ -35,6 +35,42 @@ run_static_checks() {
     "${CC:-cc}" -std=c11 -Wall -Wextra -Werror -Imain \
         tests/test_key_guard.c -o "${test_dir}/test_key_guard"
     "${test_dir}/test_key_guard"
+    "${CC:-cc}" -std=c11 -Wall -Wextra -Werror -Imain \
+        tests/test_pupu_model.c main/pupu_model.c \
+        -o "${test_dir}/test_pupu_model"
+    "${test_dir}/test_pupu_model"
+    "${CC:-cc}" -std=c11 -Wall -Wextra -Werror -Imain \
+        tests/test_pupu_save_codec.c main/pupu_save_codec.c main/pupu_model.c \
+        -o "${test_dir}/test_pupu_save_codec"
+    "${test_dir}/test_pupu_save_codec"
+    "${CC:-cc}" -std=c11 -Wall -Wextra -Werror -Imain \
+        tests/test_pupu_clock.c main/pupu_clock.c main/pupu_model.c main/pupu_save_codec.c \
+        -o "${test_dir}/test_pupu_clock"
+    "${test_dir}/test_pupu_clock"
+    "${CC:-cc}" -std=c11 -Wall -Wextra -Werror -Imain \
+        tests/test_pupu_sprite_math.c main/pupu_sprite_math.c \
+        -o "${test_dir}/test_pupu_sprite_math"
+    "${test_dir}/test_pupu_sprite_math"
+    "${CC:-cc}" -std=c11 -Wall -Wextra -Werror -Imain \
+        tests/test_pupu_input.c main/pupu_input.c \
+        -o "${test_dir}/test_pupu_input"
+    "${test_dir}/test_pupu_input"
+    "${CC:-cc}" -std=c11 -Wall -Wextra -Werror -Imain \
+        tests/test_pupu_power.c main/pupu_power.c \
+        -o "${test_dir}/test_pupu_power"
+    "${test_dir}/test_pupu_power"
+    "${CC:-cc}" -std=c11 -Wall -Wextra -Werror -Imain \
+        tests/test_gate_model.c main/gate_model.c \
+        -o "${test_dir}/test_gate_model"
+    "${test_dir}/test_gate_model"
+    "${CC:-cc}" -std=c11 -Wall -Wextra -Werror -Imain \
+        tests/test_pupu_save_policy.c main/pupu_save_policy.c main/pupu_save_codec.c \
+        main/pupu_model.c -o "${test_dir}/test_pupu_save_policy"
+    "${test_dir}/test_pupu_save_policy"
+    "${CC:-cc}" -std=c11 -Wall -Wextra -Werror -Imain \
+        tests/test_pupu_sync_proto.c main/pupu_sync_proto.c main/pupu_model.c \
+        main/pupu_clock.c main/pupu_save_codec.c -o "${test_dir}/test_pupu_sync_proto"
+    "${test_dir}/test_pupu_sync_proto" tests/pupu_sync_vectors.txt
     "${CC:-cc}" -std=c11 -Wall -Wextra -Werror -Icomponents/bsp/src \
         tests/test_bsp_display_rounding.c components/bsp/src/bsp_display_rounding.c \
         -o "${test_dir}/test_bsp_display_rounding"
@@ -71,6 +107,15 @@ run_static_checks() {
     PYTHONDONTWRITEBYTECODE=1 python3 tests/test_battery_profile.py
     PYTHONDONTWRITEBYTECODE=1 python3 tests/test_deep_sleep_contract.py
     PYTHONDONTWRITEBYTECODE=1 python3 tests/test_key_wake_contract.py
+    PYTHONDONTWRITEBYTECODE=1 python3 tests/test_pupu_deep_sleep_contract.py
+    PYTHONDONTWRITEBYTECODE=1 python3 tests/test_pupu_charset.py
+    PYTHONDONTWRITEBYTECODE=1 python3 tests/test_pupu_assets_fresh.py
+    PYTHONDONTWRITEBYTECODE=1 python3 tests/test_pupu_ble_contract.py
+    if ! command -v node >/dev/null 2>&1; then
+        echo "ERROR: Node.js 18 or newer is required for tests/test_pupu_sync_web.mjs." >&2
+        return 1
+    fi
+    node tests/test_pupu_sync_web.mjs tests/pupu_sync_vectors.txt
     PYTHONDONTWRITEBYTECODE=1 python3 tests/test_check_repo.py
     PYTHONDONTWRITEBYTECODE=1 python3 tests/test_verify_firmware.py
     PYTHONDONTWRITEBYTECODE=1 python3 tests/test_archive_firmware.py

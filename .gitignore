@@ -11,3 +11,9 @@ managed_components/
 /.agents/skills/passport-build
 /.agents/skills/passport-device-test
 /.agents/skills/passport-debug
+
+# Pupu: downloaded font sources (record source/SHA-256 in assets/fonts/pupu/README.md),
+# the optional asset venv, and the time-scaled build directory.
+/assets/fonts/pupu/src/
+/.venv-assets/
+/build-fast/

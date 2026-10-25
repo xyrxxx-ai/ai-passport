@@ -25,11 +25,17 @@ CONFIG_LV_DEF_REFR_PERIOD=20
 CONFIG_LV_FONT_MONTSERRAT_14=y
 CONFIG_LV_FONT_MONTSERRAT_20=y
 # LVGL 内置 malloc 池大小(KB)。它是独立静态区、不与系统堆共享,配大了会白白占用 RAM。
-# 本 demo UI 简单,24KB 足够;若自建复杂界面出现绘制卡死/看门狗,调大此值。
-CONFIG_LV_MEM_SIZE_KILOBYTES=24
+# 噗噗(Pupu)用 48KB:池用完时屏幕会卡住且不报错。开机和每次换页都会打印池的峰值,
+# 按实测再调;LVGL 9.5 只认这个键名(CONFIG_LV_MEM_SIZE 会被忽略)。
+CONFIG_LV_MEM_SIZE_KILOBYTES=48
 
 # --- 系统 ---
 CONFIG_FREERTOS_HZ=1000
+
+# --- 音频 ---
+# 写 Flash(噗噗存档)时缓存会暂停;把 I2S 中断放进 IRAM,边放音效边存档也不断音、不爆音。
+# 见 docs/hardware-design/AI_HARDWARE_DEVELOPMENT_GUIDE.md 第 8.1 节。
+CONFIG_I2S_ISR_IRAM_SAFE=y
 
 # --- Bluetooth LE / NimBLE ---
 # ESP32-C3 仅支持 BLE；示例只启用单连接 peripheral 所需的最小 host 配置。
@@ -42,3 +48,7 @@ CONFIG_BT_NIMBLE_ROLE_OBSERVER=n
 CONFIG_BT_NIMBLE_MAX_CONNECTIONS=1
 CONFIG_BT_NIMBLE_HOST_BASED_PRIVACY=n
 CONFIG_BT_NIMBLE_NVS_PERSIST=n
+# 噗噗同步窗口:连接建立失败(0x3E 等)时,开着这一项的 NimBLE 会自己"重试广播"并且不报断开,
+# 但 IDF 5.5.3 的传统广播重试一定失败(传入的广播参数是 NULL),设备就再也搜不到了。
+# 关掉以后失败会照常报给应用,由 main/pupu_ble.c 自己重新广播。
+CONFIG_BT_NIMBLE_ENABLE_CONN_REATTEMPT=n
