@@ -10,7 +10,6 @@
 #include "gate_model.h"
 #include "pupu_text.h"
 
-#define EASY_TICKS_TOTAL ((4 + 4 + 6 + 6 + 6 + 6) * 50)
 
 static void test_layout(void) {
     assert(GATE_HUD_H <= GATE_BAR_Y && GATE_BAR_Y + GATE_BAR_H <= GATE_LANE_TOP);
@@ -442,9 +441,10 @@ static void test_level_select(void) {
     assert(gate_input(&m, GATE_IN_OK_PRESS) == 0 && m.state == GATE_READY_LEVEL);
     assert(gate_input(&m, GATE_IN_OK_RELEASE) == GATE_EV_COUNTDOWN && m.state == GATE_COUNTDOWN);
     assert(gate_countdown_number(&m) == 3 && gate_active(&m));
-    // 学霸档的第 1 波 6 秒
+    // 学霸档第 1 波的秒数来自 gate_tuning
     for (int i = 0; i < GATE_COUNTDOWN_TICKS; i++) gate_tick(&m);
-    assert(m.state == GATE_WAVE && m.wave_len == 6 * 50 && gate_wave_ms_left(&m) == 6000);
+    const unsigned hard1 = gate_tuning.wave_s[GATE_HARD][0];
+    assert(m.state == GATE_WAVE && m.wave_len == hard1 * 50 && gate_wave_ms_left(&m) == hard1 * 1000);
     // 按住 OK 直接退出,不会先开一局
     gate_init(&m, 1, GATE_EASY);
     assert(gate_input(&m, GATE_IN_OK_PRESS) == 0);
@@ -469,7 +469,8 @@ static void test_countdown(void) {
     assert(m.wave == 0);  // 倒数不出卡片
     const uint32_t ev = gate_tick(&m);
     assert((ev & GATE_EV_START) && m.state == GATE_WAVE && m.wave == 1 && gate_countdown_number(&m) == 0);
-    assert(m.wave_len == 4 * 50 && gate_wave_ms_left(&m) == 4000);
+    const unsigned easy1 = gate_tuning.wave_s[GATE_EASY][0];
+    assert(m.wave_len == easy1 * 50 && gate_wave_ms_left(&m) == easy1 * 1000);
     // 倒数时长按也能退出
     gate_init(&m, 3, GATE_EASY);
     gate_input(&m, GATE_IN_OK_RELEASE);
@@ -486,16 +487,17 @@ static void test_wave_timing_and_lanes(void) {
     assert(gate_input(&m, GATE_IN_DOWN) == GATE_EV_LANE && m.lane == 1);
     assert(gate_input(&m, GATE_IN_DOWN) == GATE_EV_LANE && m.lane == 2);
     assert(gate_input(&m, GATE_IN_DOWN) == 0 && m.lane == 2);
-    // 倒计时条
+    // 倒计时条:从满到空,每步少 20 ms
+    const unsigned total_ms = (unsigned)m.wave_len * GATE_TICK_MS;
     unsigned last = gate_wave_ms_left(&m);
-    assert(last == 4000);
-    for (int i = 1; i < 200; i++) {
+    assert(last == total_ms && total_ms == gate_tuning.wave_s[GATE_EASY][0] * 1000u);
+    for (int i = 1; i < m.wave_len; i++) {
         assert(gate_tick(&m) == 0);
         const unsigned left = gate_wave_ms_left(&m);
-        assert(left == 4000u - (unsigned)i * 20u && left < last);
+        assert(left == total_ms - (unsigned)i * 20u && left < last);
         last = left;
     }
-    // 第 200 步:时间到,噗噗所在跑道(2)的卡片开始滑
+    // 最后一步:时间到,噗噗所在跑道(2)的卡片开始滑
     assert(gate_tick(&m) == GATE_EV_APPLYING && m.state == GATE_APPLYING && m.chosen_lane == 2);
     assert(gate_wave_ms_left(&m) == 0);
     // 滑动中换道无效,卡片照滑;滑完以后生效
@@ -505,10 +507,10 @@ static void test_wave_timing_and_lanes(void) {
     const uint32_t ev = gate_tick(&m);
     assert(m.sheep == expected && m.wave == 2 && (ev & GATE_EV_WAVE));
     assert(m.picks[0] == gate_card(&m, 2)->rank || true);  // picks 记录的是生效那张卡的 rank
-    // 第 3 波起 6 秒
+    // 第 3 波的秒数也来自 gate_tuning
     go_to_rank(&m, 0);
     finish_wave(&m);
-    assert(m.wave == 3 && m.wave_len == 6 * 50);
+    assert(m.wave == 3 && m.wave_len == gate_tuning.wave_s[GATE_EASY][2] * 50);
 }
 
 static void test_pause_resume_exit(void) {
@@ -525,7 +527,7 @@ static void test_pause_resume_exit(void) {
     for (int i = 0; i < 300; i++) assert(gate_tick(&m) == 0);
     assert(gate_input(&m, GATE_IN_DOWN) == 0);
     assert(memcmp(&frozen, &m, sizeof(m)) == 0);
-    assert(gate_wave_ms_left(&m) == 4000u - 50u * 20u);
+    assert(gate_wave_ms_left(&m) == (unsigned)m.wave_len * GATE_TICK_MS - 50u * 20u);
     // 再按一下、松开:继续
     assert(gate_input(&m, GATE_IN_OK_PRESS) == 0 && m.state == GATE_PAUSED);
     assert(gate_input(&m, GATE_IN_OK_RELEASE) == GATE_EV_RESUMED && m.state == GATE_WAVE);
@@ -568,7 +570,9 @@ static void test_determinism(void) {
     gate_input(&b, GATE_IN_OK_RELEASE);
     gate_input(&c, GATE_IN_OK_RELEASE);
     bool differs = false;
-    for (int step = 0; step < GATE_COUNTDOWN_TICKS + 44 * 50 + 6 * 15 + 100; step++) {
+    unsigned hard_total_s = 0;
+    for (int w = 0; w < GATE_WAVES; w++) hard_total_s += gate_tuning.wave_s[GATE_HARD][w];
+    for (int step = 0; step < GATE_COUNTDOWN_TICKS + (int)hard_total_s * 50 + 6 * 15 + 100; step++) {
         if (step % 37 == 0) {
             const gate_input_t in = (step / 37) % 2 ? GATE_IN_UP : GATE_IN_DOWN;
             gate_input(&a, in);

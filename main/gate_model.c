@@ -4,7 +4,7 @@
 #include <string.h>
 
 const gate_tuning_t gate_tuning = {
-    .wave_s = { {4, 4, 6, 6, 6, 6}, {6, 6, 8, 8, 8, 8} },
+    .wave_s = { {3, 3, 3, 3, 3, 3}, {3, 3, 3, 3, 3, 3} },  // 2026-10-25 真机试玩后从 4/6 和 6/8 秒改成全部 3 秒
     .sheep_start = 10,
     .win_permille = 600,
     .second_min_pct = 80,

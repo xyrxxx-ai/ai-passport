@@ -102,6 +102,7 @@ static uint32_t s_fps_min;
 static uint32_t s_fps_second_ms;
 static int64_t s_render_start_us;
 static uint32_t s_render_max_us;
+static uint8_t s_render_max_state;  // 最慢的那一帧画的时候游戏在哪个状态(gate_state_t)
 static bool s_lane_pending;         // 换道以后还没画出来
 static uint32_t s_lane_key_ms;      // 那次换道的按键时间
 static uint32_t s_lane_lat_max_ms;
@@ -126,7 +127,10 @@ static void refr_cb(lv_event_t *e) {
     s_frames++;
     s_frames_total++;
     const uint32_t took = (uint32_t)(now_us - s_render_start_us);
-    if (took > s_render_max_us) s_render_max_us = took;
+    if (took > s_render_max_us) {
+        s_render_max_us = took;
+        s_render_max_state = s_game.state;
+    }
     if (s_lane_pending) {
         s_lane_pending = false;
         const uint32_t lat = (uint32_t)(now_us / 1000) - s_lane_key_ms;
@@ -145,12 +149,12 @@ static void measure_second(uint32_t now_ms) {
 static void log_measure(const char *why) {
     lv_mem_monitor_t mon;
     lv_mem_monitor(&mon);
-    ESP_LOGI(TAG, "%s:共画 %" PRIu32 " 帧,每秒最少 %" PRIu32 " 帧,一帧最长 %" PRIu32
-                  " ms,换道到画出最长 %" PRIu32 " ms;LVGL 池剩余 %" PRIu32 " B 最大空块 %" PRIu32
+    ESP_LOGI(TAG, "%s:共画 %" PRIu32 " 帧,动画中每秒最少 %" PRIu32 " 帧,一帧最长 %" PRIu32
+                  " ms(状态 %u),换道到画出最长 %" PRIu32 " ms;LVGL 池剩余 %" PRIu32 " B 最大空块 %" PRIu32
                   " B 峰值 %" PRIu32 " B",
              why, s_frames_total, s_fps_min == UINT32_MAX ? 0 : s_fps_min, s_render_max_us / 1000,
-             s_lane_lat_max_ms, (uint32_t)mon.free_size, (uint32_t)mon.free_biggest_size,
-             (uint32_t)mon.max_used);
+             (unsigned)s_render_max_state, s_lane_lat_max_ms, (uint32_t)mon.free_size,
+             (uint32_t)mon.free_biggest_size, (uint32_t)mon.max_used);
 }
 
 static void pet_show(const pupu_model_t *m, pupu_pose_t pose) {
@@ -319,6 +323,7 @@ lv_obj_t *pupu_ui_gate_create(const pupu_model_t *m, uint32_t now_ms) {
     s_frames = s_frames_total = 0;
     s_fps_min = UINT32_MAX;
     s_render_max_us = 0;
+    s_render_max_state = 0;
     s_lane_pending = false;
     s_lane_lat_max_ms = 0;
 
@@ -614,7 +619,16 @@ pupu_ui_req_t pupu_ui_gate_update(pupu_model_t *m, uint32_t now_ms) {
     render_hud();
     pet_move();
     pet_show(m, s_pose);
-    if (s_measure) measure_second(now_ms);
+    // 只在画面持续在动的时候量帧率:波进行中(倒计时条)、卡片滑动、狼群滑入。
+    // 狼群停下来比大小的那 1 秒画面是静止的,LVGL 不重画,算进去会把"每秒最少帧"拉成 0。
+    const bool animating = gate_active(&s_game) &&
+                           (s_game.state != GATE_WOLVES || s_game.wolves_ticks < WOLF_SLIDE_TICKS);
+    if (s_measure && animating) {
+        measure_second(now_ms);
+    } else if (s_measure) {
+        s_frames = 0;  // 静止阶段不计,恢复动起来时重新数这一秒
+        s_fps_second_ms = now_ms;
+    }
 
     if (ev & GATE_EV_FINISHED) return settle(m, now_ms);
     return PUPU_UI_NONE;

@@ -9,8 +9,8 @@ Update this document at the end of every milestone. The product design is in [de
 ## Current state
 
 - **Branch**: `feature/pupu-v1`, created from `006c227` on `origin/main`. It has no upstream tracking branch and is never pushed.
-- **Done**: M0 preparation, M1 pet rule core, M2 first screen, M3 care actions, sound effects, save data, M4 screen off, deep sleep, and continuous clock, M5 mini-game "Catch the Stars" (device acceptance in "M4 + M5 device acceptance"), M6 Bluetooth sync and Mac web page (code done, not yet tested on the device). **M7 Pupu v2 (pat, work, emo, Sheep Gate)**: code, host tests, and the complete gate are done, and Catch the Stars has been replaced by Sheep Gate; **not yet tested on the device**.
-- **Next step**: flash and run the M7 device acceptance (see "Device acceptance checklist" in the M7 section, together with the M6 checklist), then M8, the WeChat mini program (you need to register a mini-program account first; see "Next step" at the end).
+- **Done**: M0 preparation, M1 pet rule core, M2 first screen, M3 care actions, sound effects, save data, M4 screen off, deep sleep, and continuous clock, M5 mini-game "Catch the Stars" (device acceptance in "M4 + M5 device acceptance"), M6 Bluetooth sync and Mac web page (code done, not yet tested on the device). **M7 Pupu v2 (pat, work, emo, Sheep Gate)**: code, host tests, the complete gate, and the time-scaled device acceptance are done (4 items untested, see "Device acceptance results" in the M7 section), and Catch the Stars has been replaced by Sheep Gate. After play testing every Sheep Gate wave was shortened to 3 seconds; that change is not yet committed or flashed.
+- **Next step**: decide whether to commit and flash the 3-second build; run the M6 device checklist; then M8, the WeChat mini program (you need to register a mini-program account first; see "Next step" at the end).
 - **Commit state**: M0 (`2c77a38`), M1 (`dcf9342`), M2 (`2ad5410`), M3 (`c6ba37a`), M4 + M5 (`a6534e2`), M6 (`771d2e5`), the v2 handoff (`a9a7f22`), M7a (`16a2ed1`), and M7b + M7c (`3933967`) are committed to the local `feature/pupu-v1`. With your approval, the M7d documents are committed; their hash is recorded in the next milestone's section (a commit cannot contain its own hash). Nothing is pushed.
 
 ## Milestones
@@ -24,7 +24,7 @@ Update this document at the end of every milestone. The product design is in [de
 | M4 | Screen off, deep sleep, and continuous clock | Done; normal-build device acceptance passes; time-scaled deep-sleep catch-up still to test |
 | M5 | Mini-game "Catch the Stars" | Done; device acceptance passes |
 | M6 | Bluetooth sync and Mac web page | Code and host tests done; waiting for device acceptance |
-| M7 | Pupu v2: pat, work, emo, Sheep Gate | Code and host tests done; waiting for device acceptance |
+| M7 | Pupu v2: pat, work, emo, Sheep Gate | Done; time-scaled device acceptance passed (4 items untested, see the M7 section) |
 | M8 | WeChat mini program | Not started |
 | M9 | Full-device acceptance and wrap-up | Not started |
 
@@ -615,6 +615,32 @@ Flashing the **time-scaled build** (scale 60) first is recommended: the window's
 | Deep-sleep catch-up (left from M4) | Time-scaled build: screen off for 5 minutes until deep sleep, wake with a key | Welcome back, away about 5 hours |
 | Wave and chime | Watch and listen | You are happy with them |
 
+### Device acceptance results (2026-10-25, time-scaled build, scale 60)
+
+Flashing: with your approval, esptool wrote the time-scaled `build-fast/FoloToy-AI-Passport.bin` (version `9d266ac`, SHA-256 `7d1ef222…e4ff`, 1,207,072 bytes, checked before flashing) in three segments: bootloader `0x0`, partition table `0x8000`, application `0x10000`, all three verified. NVS (`0x9000`) and the RF calibration region (`0xF000`) were not erased. The serial log was recorded on the computer for about 45 minutes, and every number below was checked against the log line of that action.
+
+| Item | Result |
+| --- | --- |
+| Old save migration | Pass: the 67-byte v1 save (seq 164) was read at boot, the migrated 71-byte v2 save (seq 165) written back, the status page shows 30 pocket money, and fullness, happiness, and bond were kept |
+| Font | Pass: boot log "font self-check passed: 308 non-ASCII characters have glyphs" |
+| Six pat levels | Pats 1–5 pass: +5/+1 three times, the 4th annoyed (result 9), the 5th happiness −5 (result 10); hand, bubbles, and sounds correct. **The 6th was not reached**: the 10-minute window is only 10 seconds in the time-scaled build, five reactions take about 8 seconds, and the 6th press came after the window closed. Test it on the normal build (10-minute window) or press faster |
+| Window reset | Pass: a pat after the window is the 1st again (+5/+1) |
+| Five work levels | Pass: jobs 1 and 2 +10 coins / −5 happiness / allowance −3; job 3 +10 / −5 and emo (240 minutes left); jobs 4 and 5 +3 / −10 (happiness floored at 0); job 6 "can't work anymore" changes nothing, and so does a further press |
+| Emo pose and priority | Pass (emo idle, bubble, all three pages); "lying down when very hungry" not tested (fullness stayed above 40) |
+| During emo | Pass: three pats all "not talking to you" (result 11, not counted); rice balls eaten; a cookie at fullness 100 "no appetite" (result 11, nothing charged) |
+| Ending emo | Pass: a star candy at fullness 99 was eaten, happiness +25, emo cleared at once, normal idle on the home page |
+| Emo expiring on its own | Not tested (needs another emo on the next pet day) |
+| No money | Not tested (pocket money stayed above 30) |
+| Sheep Gate | Two rounds pass: Scholar, 975 sheep vs 641 wolves (R 913‰), won with happiness +15, bond +3, star candy +1; Normal, 402 vs 589 (R 410‰), lost with only fullness −5. Card text, countdown bar, slide, feedback, wolf count, and result card looked right to you |
+| Performance log | Lane change to drawn frame at most 24 / 32 ms (line ≤ 50) pass; LVGL pool 33.9 KB left (line ≥ 4 KB) pass; **slowest frame 54 / 50 ms exceeds the 40 ms line**, **minimum 11 / 24 frames per second below the line of 30**. Sheep Gate's cards are static and the 1-second wolf comparison redraws nothing, so these two numbers are not comparable with Catch the Stars; you noticed no stutter. The working tree now counts frames only while the screen animates and records the state of the slowest frame, to be read at the next flash |
+| Sounds | Pass (all distinguishable to you) |
+| Deep sleep and wake | Pass along the way: deep sleep 5 minutes after the screen turned off, the USB serial port disappeared; the state continued after a key wake (job count and pocket money carried over) |
+| Saves | 25 periodic / after-change saves, none failed |
+| Warnings and errors | No W / E output in the whole log, no reset or crash |
+| Memory | LVGL pool: home 19%, Sheep Gate 28% with a 15.2 KB peak; heap 151 KB with a 145.8 KB minimum, unchanged across page switches |
+
+Change after play testing (code and design document changed, not yet committed or flashed): **every Sheep Gate wave now lasts 3 seconds** instead of 4–6 (Normal) and 6–8 (Scholar) (`gate_tuning.wave_s`); the tests read the timing from `gate_tuning`; the frame-rate measurement only counts while the screen animates. The 3-second build is in `build-fast/` (version `9d266ac-dirty`, SHA-256 `845309c5…5eee`).
+
 ### Interface notes for later milestones
 
 - **The M8 mini program** (formerly M7) uses the same protocol. `tools/pupu-sync-web/pupu_protocol.js` uses no browser APIs and is a direct reference (encoding, CRC, retries, the order of one whole sync); `tests/pupu_sync_vectors.txt` holds the golden bytes, and the mini program should match them byte for byte.
@@ -754,8 +780,8 @@ Flash the **time-scaled build** (scale 60) first: emo's 4 hours take 4 minutes a
 ```text
 Build: PASS (validate.sh firmware build, merged image, partition layout, and bundle checks passed, no warnings)
 Host tests: PASS (repository checks, actionlint, and all host tests passed, including the new test_gate_model and the changed test_pupu_model, test_pupu_save_codec, test_pupu_sync_proto, test_pupu_sync_web, test_pupu_charset)
-Device tests: NOT RUN (M7 has not been flashed)
-Unverified: every item of the device acceptance checklist above; the M6 device checklist is also still open
+Device tests: PASS (time-scaled build on the device: old-save migration, font, pat levels 1–5 and the window reset, five work levels, emo pose / behaviour / ending, two Sheep Gate rounds, sounds, deep sleep and wake, saves; see "Device acceptance results" above)
+Unverified: the 6th pat (the time-scaled window is too short); emo expiring on its own, lying down over emo when very hungry, and no money (all three covered by host tests); Sheep Gate's slowest frame of 54 ms exceeds the 40 ms Catch the Stars line, acceptance is your call; the 3-second build is not flashed; the M6 device checklist is also still open
 ```
 
 ### Notes
