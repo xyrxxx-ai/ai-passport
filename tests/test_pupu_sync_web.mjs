@@ -34,8 +34,9 @@ function loadVectors(path) {
 }
 
 const vectors = loadVectors(vectorPath);
-assert.equal(vectors.filter((v) => v.dir === 'req').length, 17);
-assert.equal(vectors.filter((v) => v.dir === 'resp').length, 17);
+assert.equal(vectors.filter((v) => v.dir === 'req').length, 18);
+assert.equal(vectors.filter((v) => v.dir === 'resp').length, 18);
+const SAVE_CHUNKS = [0, 1, 2, 3, 4]; // a 71-byte v2 save record in 17 + 17 + 17 + 17 + 3
 const byName = Object.fromEntries(vectors.map((v) => [v.name, v]));
 const num = (v) => (String(v).startsWith('0x') ? parseInt(v, 16) : Number(v));
 
@@ -57,7 +58,7 @@ function testEncoders() {
     assert.deepEqual(got, v.bytes, v.name);
     checked++;
   }
-  assert.equal(checked, 14);
+  assert.equal(checked, 15);
   // negative time zones and the whole u32 range
   assert.deepEqual(encodeTime(0, 0xffffffff, -300), Uint8Array.of(1, 0, 0xff, 0xff, 0xff, 0xff, 0xd4, 0xfe));
 }
@@ -87,7 +88,7 @@ function testDecoders() {
 }
 
 function savedBlob() {
-  const chunks = [0, 1, 2, 3].map((i) => decode(byName[`save_chunk_${i}`].bytes).data);
+  const chunks = SAVE_CHUNKS.map((i) => decode(byName[`save_chunk_${i}`].bytes).data);
   const blob = new Uint8Array(chunks.reduce((n, c) => n + c.length, 0));
   let at = 0;
   for (const c of chunks) {
@@ -101,7 +102,7 @@ function testSaveCheck() {
   assert.equal(crc32(new TextEncoder().encode('123456789')), 0xcbf43926);
   const info = decode(byName.save_info.bytes);
   const blob = savedBlob();
-  assert.equal(blob.length, 67);
+  assert.equal(blob.length, 71);
   assert.equal(crc32(blob), 0x2144df1c); // whole record incl. its CRC: always this constant
   assert.deepEqual(checkSave(blob, info), { ok: true, lengthOk: true, crcOk: true, trailerOk: true, magicOk: true });
   // any single flipped byte is caught
@@ -110,7 +111,7 @@ function testSaveCheck() {
     bad[i] ^= 0x01;
     assert.equal(checkSave(bad, info).ok, false, `flip byte ${i}`);
   }
-  assert.equal(checkSave(blob.subarray(0, 66), info).ok, false);
+  assert.equal(checkSave(blob.subarray(0, 70), info).ok, false);
 }
 
 function testFormat() {
@@ -212,12 +213,12 @@ async function testWholeSync() {
   const steps = [];
   const r = await runSync(link, { epochS: 1798772400, tzMin: 480, onStep: (s) => steps.push(s) });
   assert.deepEqual(steps, ['time', 'save', 'done']);
-  assert.equal(r.status.full, 54);
+  assert.equal(r.status.full, 72);
   assert.equal(r.status.away_min, 180);
   assert.equal(r.check.ok, true);
   assert.deepEqual(r.blob, savedBlob());
-  // TIME (lost once and resent), SAVE_BEGIN, 4 × SAVE_GET, DONE
-  assert.deepEqual(dev.sent.map((b) => b[0]), [1, 1, 3, 4, 4, 4, 4, 5]);
+  // TIME (lost once and resent), SAVE_BEGIN, 5 × SAVE_GET, DONE
+  assert.deepEqual(dev.sent.map((b) => b[0]), [1, 1, 3, 4, 4, 4, 4, 4, 5]);
   assert.deepEqual(dev.sent[1].subarray(2), encodeTime(0, 1798772400, 480).subarray(2));
 
   assert.equal(r.doneAcked, true);
@@ -229,7 +230,7 @@ async function testWholeSync() {
   const r2 = await runSync(link2, { epochS: 1798772400, tzMin: 480 });
   assert.equal(r2.doneAcked, false);
   assert.equal(r2.check.ok, true);
-  assert.equal(r2.status.full, 54);
+  assert.equal(r2.status.full, 72);
 
   // an ERR reply stops the sync with a readable message
   const errLink = new PupuLink(async (bytes) => {

@@ -2,6 +2,8 @@
 
 #include <string.h>
 
+#include "pupu_config.h"
+
 #define PUPU_SAVE_MAGIC 0x55505550u  // 小端写出就是 "PUPU"
 
 uint32_t pupu_crc32(const uint8_t *data, size_t len) {
@@ -52,7 +54,8 @@ static uint64_t get_u64(const uint8_t *p) {
     return v;
 }
 
-// v1 payload 的字段顺序。改动这里就是改了存档格式,必须同时升版本号。
+// v1 payload 的字段顺序(51 字节)。v2 的前 51 字节和它完全一样。
+// 改动这里就是改了存档格式,必须同时升版本号。
 static void decode_v1(const uint8_t *p, pupu_save_t *out) {
     pupu_model_t *m = &out->model;
     memset(out, 0, sizeof(*out));
@@ -79,12 +82,29 @@ static void decode_v1(const uint8_t *p, pupu_save_t *out) {
     out->token = get_u64(p + 43);
 }
 
-// 按存档里的版本号读 payload,并迁移到当前版本。v1 是第一个版本,还没有旧版本要迁移。
+// v2 在 v1 后面接的 4 字节:coin u8、work_today u8、emo_min u16。
+static void decode_v2_tail(const uint8_t *p, pupu_save_t *out) {
+    pupu_model_t *m = &out->model;
+    m->coin = p[PUPU_SAVE_PAYLOAD_SIZE_V1];
+    m->work_today = p[PUPU_SAVE_PAYLOAD_SIZE_V1 + 1];
+    m->emo_min = get_u16(p + PUPU_SAVE_PAYLOAD_SIZE_V1 + 2);
+}
+
+// 按存档里的版本号读 payload,并迁移到当前版本。
 static pupu_save_status_t decode_payload(uint16_t ver, const uint8_t *p, size_t n, pupu_save_t *out) {
     switch (ver) {
     case 1:
-        if (n != PUPU_SAVE_PAYLOAD_SIZE) return PUPU_SAVE_BAD_LENGTH;
+        if (n != PUPU_SAVE_PAYLOAD_SIZE_V1) return PUPU_SAVE_BAD_LENGTH;
         decode_v1(p, out);
+        // v1 → v2 迁移:v1 没有零花钱、打工和 emo,按新孵化的噗噗补上
+        out->model.coin = PUPU_COIN_START;
+        out->model.work_today = 0;
+        out->model.emo_min = 0;
+        return PUPU_SAVE_OK;
+    case 2:
+        if (n != PUPU_SAVE_PAYLOAD_SIZE_V2) return PUPU_SAVE_BAD_LENGTH;
+        decode_v1(p, out);
+        decode_v2_tail(p, out);
         return PUPU_SAVE_OK;
     default:
         return PUPU_SAVE_BAD_VERSION;
@@ -100,6 +120,7 @@ size_t pupu_save_encode(const pupu_save_t *s, uint32_t seq, uint8_t *buf, size_t
     p = put_u32(p, seq);
     p = put_u16(p, PUPU_SAVE_PAYLOAD_SIZE);
 
+    // v1 部分
     p = put_u8(p, m->stage);
     p = put_u8(p, m->full);
     p = put_u8(p, m->happy);
@@ -121,6 +142,10 @@ size_t pupu_save_encode(const pupu_save_t *s, uint32_t seq, uint8_t *buf, size_t
     p = put_u32(p, s->acct_epoch);
     p = put_u64(p, s->rtc_us);
     p = put_u64(p, s->token);
+    // v2 新增
+    p = put_u8(p, m->coin);
+    p = put_u8(p, m->work_today);
+    p = put_u16(p, m->emo_min);
 
     put_u32(p, pupu_crc32(buf, (size_t)(p - buf)));
     return PUPU_SAVE_RECORD_SIZE;

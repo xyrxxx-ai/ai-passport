@@ -1,6 +1,7 @@
 // main/pupu_config.h —— 噗噗的全部规则数值(纯逻辑,只用标准 C)。
 //
-// 数值来自产品说明 docs/assets/pupu/design.zh_CN.md 第 2–5 节和第 12 节。
+// 数值来自产品说明 docs/assets/pupu/design.zh_CN.md 第 2–5 节和第 12 节,
+// v2 的改动(衰减、零花钱、摸摸六档、打工、emo)见 docs/assets/pupu/v2-handoff.zh_CN.md 第 1–5 节。
 // 都是暂定值,真机试玩后在这里统一调整。时间类数值都是"宠物时间",
 // 即真实秒数 × CONFIG_PUPU_TIME_SCALE(倍率换算见 pupu_clock.h)。
 #pragma once
@@ -11,12 +12,14 @@
 #define PUPU_EGG_HAPPY             80   // 新蛋开心
 #define PUPU_ADULT_BOND            100  // 幼年亲密攒满这个数长成成年
 #define PUPU_CANDY_MAX             99   // 星星糖最多存这么多
+#define PUPU_COIN_MAX              99   // 零花钱最多存这么多
+#define PUPU_COIN_START            30   // 新孵化的噗噗有 30 元;v1 旧存档迁移时也补成 30 元
 
-// ---- 每分钟衰减(宠物时间) ----
-#define PUPU_FULL_DECAY_EVERY_MIN  6    // 饱腹每 6 分钟 -1,即每小时 -10
-#define PUPU_HAPPY_DECAY_EVERY_MIN 15   // 开心每 15 分钟掉一次
-#define PUPU_HAPPY_DECAY           2    // 平时每次 -2,即每小时 -8
-#define PUPU_HAPPY_DECAY_STARVING  4    // 很饿时每次 -4,即每小时 -16
+// ---- 每分钟衰减(宠物时间;v2 放慢:睡一觉大约掉一个饭团) ----
+#define PUPU_FULL_DECAY_EVERY_MIN  15   // 饱腹每 15 分钟 -1,即每小时 -4
+#define PUPU_HAPPY_DECAY_EVERY_MIN 20   // 开心每 20 分钟掉一次
+#define PUPU_HAPPY_DECAY           1    // 平时每次 -1,即每小时 -3
+#define PUPU_HAPPY_DECAY_STARVING  2    // 很饿时每次 -2,即每小时 -6
 #define PUPU_STARVING_BELOW        15   // 饱腹低于这个数算"很饿"
 #define PUPU_HUNGRY_BELOW          40   // 饱腹低于这个数算"饿"(冒气泡、饭团加亲密)
 
@@ -25,10 +28,12 @@
 #define PUPU_CATCH_UP_FLOOR        10            // 补算部分最低降到 10
 #define PUPU_DAY_S                 86400u        // 一个宠物日 = 24 小时宠物时间
 
-// ---- 喂食 ----
-#define PUPU_REFUSE_FULL_AT        90   // 饱腹 >= 90 时三种食物都不吃
+// ---- 喂食(v2 起饭团和饼干要花零花钱;星星糖免费) ----
+#define PUPU_REFUSE_FULL_AT        90   // 饱腹 >= 90 时不吃(例外:emo 中的星星糖照吃)
+#define PUPU_RICE_PRICE            5    // 饭团 5 元
 #define PUPU_RICE_FULL             35   // 饭团:饱腹 +35
 #define PUPU_RICE_HUNGRY_BOND      3    // 饿时喂饭团:亲密 +3
+#define PUPU_COOKIE_PRICE          3    // 小饼干 3 元(吃腻了照样扣钱)
 #define PUPU_COOKIE_FULL           10   // 小饼干:饱腹 +10
 #define PUPU_COOKIE_HAPPY          5    // 小饼干:开心 +5
 #define PUPU_COOKIE_WINDOW_MIN     60   // 第一块饼干开启 60 分钟窗口
@@ -36,17 +41,35 @@
 #define PUPU_CANDY_HAPPY           25   // 星星糖:开心 +25
 #define PUPU_CANDY_BOND            2    // 星星糖:亲密 +2
 
-// ---- 摸摸头 ----
-#define PUPU_PAT_HAPPY             5    // 开心 +5
-#define PUPU_PAT_BOND              1    // 亲密 +1
+// ---- 摸摸(10 分钟窗口内按第几次分六档,见 v2 交接第 3 节) ----
+#define PUPU_PAT_HAPPY             5    // 第 1–3 次:开心 +5
+#define PUPU_PAT_BOND              1    // 第 1–3 次:亲密 +1
 #define PUPU_PAT_WINDOW_MIN        10   // 第一次摸摸开启 10 分钟窗口
-#define PUPU_PAT_LIMIT             3    // 窗口内前 3 次有效,第 4 次起躲开
+#define PUPU_PAT_LIMIT             3    // 窗口内前 3 次有效,第 4 次起不加(不耐烦)
+#define PUPU_PAT_ANGRY_AT          5    // 第 5 次:激烈反抗,开心 -PUPU_PAT_ANGRY_HAPPY
+#define PUPU_PAT_ANGRY_HAPPY       5
+#define PUPU_PAT_COUNT_MAX         5    // 计数饱和值:第 6 次起只转身,不计数、不延长窗口
 
-// ---- 小游戏「接星星」结算 ----
+// ---- 打工(按宠物日计数,见 v2 交接第 4 节) ----
+#define PUPU_WORK_COIN             10   // 第 1–3 次:零花钱 +10
+#define PUPU_WORK_HAPPY_COST       5    // 第 1–3 次:开心 -5
+#define PUPU_WORK_BOND_BUDGET      3    // 第 1–3 次:占掉当天 3 点亲密额度(亲密本身不变)
+#define PUPU_WORK_EMO_AT           3    // 第 3 次结束后进入 emo
+#define PUPU_WORK_EMO_COIN         3    // 第 4、5 次:零花钱只 +3
+#define PUPU_WORK_EMO_HAPPY_COST   10   // 第 4、5 次:开心 -10
+#define PUPU_WORK_PER_DAY          5    // 第 6 次起拒绝("做不动了")
+#define PUPU_EMO_MIN               240  // emo 持续 4 小时(宠物分钟);只有星星糖能提前解除
+
+// ---- 小游戏「接星星」结算(M7c 换成羊过门时删除) ----
 #define PUPU_CATCH_WIN_STARS       8    // 接到这么多颗算赢
 #define PUPU_CATCH_FULL_COST       5    // 完成一局:饱腹 -5
 #define PUPU_CATCH_HAPPY           15   // 赢:开心 +15
 #define PUPU_CATCH_BOND            3    // 赢:亲密 +3
+
+// ---- 小游戏「羊过门」结算(奖励和接星星一样;赢的条件在 gate_model 里) ----
+#define PUPU_GATE_FULL_COST        5    // 完成一局:饱腹 -5
+#define PUPU_GATE_HAPPY            15   // 赢:开心 +15
+#define PUPU_GATE_BOND             3    // 赢:亲密 +3
 #define PUPU_CANDY_PER_DAY         3    // 每天最多从小游戏得 3 颗星星糖
 
 // ---- 同步和每日上限 ----

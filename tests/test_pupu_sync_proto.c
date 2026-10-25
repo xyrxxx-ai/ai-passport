@@ -80,6 +80,10 @@ static uint16_t u16_at(const uint8_t *p) {
 }
 
 // ---- 共享向量:按顺序回放,每条回复必须逐字节一样 ----
+//
+// `--dump <向量文件>` 模式按同样的顺序回放,但把每条 resp 行换成设备实际的回复(十六进制
+// 和 "|" 后面的字段都重新生成),其他行原样打印到标准输出。改了规则(比如衰减、存档格式)
+// 以后用它重新生成向量文件,再跑 tests/test_pupu_sync_web.mjs 交叉验证。
 
 static size_t parse_hex(const char *s, uint8_t *out, size_t cap) {
     size_t n = 0;
@@ -98,7 +102,50 @@ static size_t parse_hex(const char *s, uint8_t *out, size_t cap) {
     return n;
 }
 
-static void test_shared_vectors(const char *path) {
+static uint16_t u16_le(const uint8_t *p) {
+    return (uint16_t)(p[0] | (p[1] << 8));
+}
+
+// --dump:把一条回复按向量文件的格式打出来(十六进制 + 网页测试要核对的字段)。
+static void print_resp(const char *name, const pupu_sync_result_t *r) {
+    char hex[3 * PUPU_SYNC_MSG_MAX + 1];
+    size_t n = 0;
+    for (int i = 0; i < r->reply_len; i++) {
+        n += (size_t)snprintf(hex + n, sizeof(hex) - n, "%s%02x", i > 0 ? " " : "", r->reply[i]);
+    }
+    printf("resp %-15s %-48s | ", name, hex);
+    const uint8_t *p = r->reply;
+    switch (p[0]) {
+    case PUPU_MSG_STATUS:
+        printf("kind=status seq=%u proto_ver=%u stage=%u full=%u happy=%u bond=%u candy=%u "
+               "fed_age_min=%u away_min=%u flags=%u\n",
+               p[1], p[2], p[3], p[4], p[5], u16_le(p + 6), p[8], u16_le(p + 9), u16_le(p + 11),
+               p[13]);
+        break;
+    case PUPU_MSG_SAVE_INFO: {
+        const uint32_t crc = (uint32_t)p[6] | ((uint32_t)p[7] << 8) | ((uint32_t)p[8] << 16) |
+                             ((uint32_t)p[9] << 24);
+        printf("kind=save_info seq=%u save_ver=%u total_len=%u chunk_count=%u crc32=0x%08x\n",
+               p[1], p[2], u16_le(p + 3), p[5], (unsigned)crc);
+        break;
+    }
+    case PUPU_MSG_SAVE_CHUNK:
+        printf("kind=save_chunk seq=%u idx=%u data=", p[1], p[2]);
+        for (int i = 3; i < r->reply_len; i++) printf("%02x", p[i]);
+        printf("\n");
+        break;
+    case PUPU_MSG_DONE_ACK:
+        printf("kind=done_ack seq=%u\n", p[1]);
+        break;
+    default:  // PUPU_MSG_ERR
+        printf("kind=err seq=%u req_type=%u code=%u\n", p[1], p[2], p[3]);
+        break;
+    }
+}
+
+// 回放向量文件。dump=false:每条回复必须和文件里的逐字节一样;dump=true:把文件重新打出来,
+// resp 行换成实际的回复。
+static void replay_vectors(const char *path, bool dump) {
     FILE *f = fopen(path, "r");
     if (f == NULL) {
         fprintf(stderr, "cannot open %s (run from the repository root)\n", path);
@@ -112,7 +159,10 @@ static void test_shared_vectors(const char *path) {
     bool have_req = false;
     int pairs = 0;
     while (fgets(line, sizeof(line), f)) {
-        if (line[0] == '#' || line[0] == '\n') continue;
+        if (line[0] == '#' || line[0] == '\n') {
+            if (dump) fputs(line, stdout);
+            continue;
+        }
         int used = 0;
         const int fields = sscanf(line, "%7s %63s %n", kind, name, &used);
         assert(fields == 2);
@@ -120,12 +170,16 @@ static void test_shared_vectors(const char *path) {
             assert(!have_req);
             req_len = parse_hex(line + used, req, sizeof(req));
             have_req = true;
+            if (dump) fputs(line, stdout);
             continue;
         }
         assert(strcmp(kind, "resp") == 0 && have_req);
-        const size_t want_len = parse_hex(line + used, want, sizeof(want));
+        // dump 模式不看文件里的旧回复(可能是占位符),只重新生成
+        const size_t want_len = dump ? 0 : parse_hex(line + used, want, sizeof(want));
         const pupu_sync_result_t r = send(req, req_len);
-        if (r.reply_len != want_len || memcmp(r.reply, want, want_len) != 0) {
+        if (dump) {
+            print_resp(name, &r);
+        } else if (r.reply_len != want_len || memcmp(r.reply, want, want_len) != 0) {
             fprintf(stderr, "vector %s: reply differs\n  got ", name);
             for (int i = 0; i < r.reply_len; i++) fprintf(stderr, " %02x", r.reply[i]);
             fprintf(stderr, "\n");
@@ -136,7 +190,11 @@ static void test_shared_vectors(const char *path) {
     }
     fclose(f);
     assert(!have_req);
-    assert(pairs == 17);  // 改了向量文件就同时改这里,防止文件被截断还"通过"
+    if (!dump) assert(pairs == 18);  // 改了向量文件就同时改这里,防止文件被截断还"通过"
+}
+
+static void test_shared_vectors(const char *path) {
+    replay_vectors(path, false);
 }
 
 // ---- 单项 ----
@@ -149,8 +207,10 @@ static void test_crc_and_chunks(void) {
     assert(pupu_sync_chunk_count(18) == 2);
     assert(pupu_sync_chunk_count(34) == 2);
     assert(pupu_sync_chunk_count(35) == 3);
-    assert(pupu_sync_chunk_count(PUPU_SAVE_RECORD_SIZE) == 4);
-    assert(PUPU_SAVE_RECORD_SIZE == 67);
+    assert(pupu_sync_chunk_count(68) == 4);
+    assert(pupu_sync_chunk_count(69) == 5);
+    assert(pupu_sync_chunk_count(PUPU_SAVE_RECORD_SIZE) == 5);
+    assert(PUPU_SAVE_RECORD_SIZE == 71);  // v2 存档:17 + 17 + 17 + 17 + 3
 }
 
 static void test_malformed(void) {
@@ -205,10 +265,13 @@ static void test_seq_echo(void) {
     const uint8_t sb[2] = {PUPU_MSG_SAVE_BEGIN, 0x80};
     r = send(sb, 2);
     assert(r.reply[0] == PUPU_MSG_SAVE_INFO && r.reply[1] == 0x80 && r.reply_len == 10);
-    const uint8_t sg[3] = {PUPU_MSG_SAVE_GET, 0x7F, 3};
+    const uint8_t sg[3] = {PUPU_MSG_SAVE_GET, 0x7F, 4};
     r = send(sg, 3);
-    assert(r.reply[0] == PUPU_MSG_SAVE_CHUNK && r.reply[1] == 0x7F && r.reply[2] == 3);
-    assert(r.reply_len == 3 + 16);  // 最后一块 67 − 3 × 17 = 16 字节
+    assert(r.reply[0] == PUPU_MSG_SAVE_CHUNK && r.reply[1] == 0x7F && r.reply[2] == 4);
+    assert(r.reply_len == 3 + 3);  // 最后一块 71 − 4 × 17 = 3 字节
+    const uint8_t sg3[3] = {PUPU_MSG_SAVE_GET, 0x7E, 3};
+    r = send(sg3, 3);
+    assert(r.reply[2] == 3 && r.reply_len == 3 + 17);  // 第 4 块是满的
     const uint8_t dn[2] = {PUPU_MSG_DONE, 0xA5};
     r = send(dn, 2);
     assert(r.reply[0] == PUPU_MSG_DONE_ACK && r.reply[1] == 0xA5 && r.reply_len == 2 && r.done);
@@ -238,20 +301,26 @@ static void test_snapshot_is_stable(void) {
 
     // 整份快照能解码回来,两层 CRC 都对
     uint8_t all[PUPU_SAVE_RECORD_SIZE];
-    for (uint8_t i = 0; i < 4; i++) {
+    size_t got = 0;
+    for (uint8_t i = 0; i < 5; i++) {
         const uint8_t q[3] = {PUPU_MSG_SAVE_GET, (uint8_t)(10 + i), i};
         r = send(q, 3);
+        assert(r.reply[0] == PUPU_MSG_SAVE_CHUNK && got + r.reply_len - 3u <= sizeof(all));
         memcpy(all + i * 17, r.reply + 3, r.reply_len - 3u);
+        got += r.reply_len - 3u;
     }
+    assert(got == sizeof(all));
     assert(pupu_crc32(all, sizeof(all) - 4) == s_sync.snap_crc);
     assert(pupu_crc32(all, sizeof(all)) == 0x2144DF1Cu);  // 连自带的 CRC 一起算:永远是这个常数
-    const uint32_t trailer = (uint32_t)all[63] | ((uint32_t)all[64] << 8) |
-                             ((uint32_t)all[65] << 16) | ((uint32_t)all[66] << 24);
+    const uint8_t *tail = all + sizeof(all) - 4;
+    const uint32_t trailer = (uint32_t)tail[0] | ((uint32_t)tail[1] << 8) |
+                             ((uint32_t)tail[2] << 16) | ((uint32_t)tail[3] << 24);
     assert(trailer == s_sync.snap_crc);
     pupu_save_t back;
     uint32_t seq = 99;
     assert(pupu_save_decode(all, sizeof(all), &back, &seq) == PUPU_SAVE_OK);
     assert(seq == 0 && back.model.full == 1 && back.token == 0x1111 && back.acct_epoch == T0);
+    assert(back.model.coin == PUPU_COIN_START && back.model.emo_min == 0);  // v2 字段也在备份里
 
     // 手机重新连上:上一次连接的快照不要了(随机起点的 seq 碰巧一样也不会拿到旧快照)
     pupu_sync_new_link(&s_sync);
@@ -323,8 +392,9 @@ static void test_cap_and_floor(void) {
     s_clock.scale = 60;
     r = send_time(1, T0 + 600);
     assert(r.away_pet_s == 10ull * HOUR_S && u16_at(r.reply + 11) == 600);
-    // 8 小时:饱腹 84 − 80、开心 75 − 64 以上,都停在最低值 10
-    assert(s_model.full == PUPU_CATCH_UP_FLOOR && s_model.happy == PUPU_CATCH_UP_FLOOR);
+    // 只补 8 小时:饱腹 84 − 32 = 52、开心 75 − 24 = 51(v2 衰减),不是 10 小时的量
+    assert(s_model.full == 52 && s_model.happy == 51);
+    assert(r.reply[4] == 52 && r.reply[5] == 51);
     assert(s_clock.acct_now == T0 + 600);  // acct_now 一直是真实秒
 
     // 加速版里深睡醒来补算了 10 小时;对时时手机只快 1 秒(= 60 宠物秒):"最近离开"不能被改成 1 分钟
@@ -530,6 +600,10 @@ static void test_window_wraps(void) {
 }
 
 int main(int argc, char **argv) {
+    if (argc > 2 && strcmp(argv[1], "--dump") == 0) {
+        replay_vectors(argv[2], true);  // 重新生成向量文件,见 replay_vectors()
+        return 0;
+    }
     test_shared_vectors(argc > 1 ? argv[1] : "tests/pupu_sync_vectors.txt");
     test_crc_and_chunks();
     test_malformed();
